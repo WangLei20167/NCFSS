@@ -13,5 +13,42 @@
     tools:context="com.example.administrator.ncfss.MainActivity"
     >
 
+    <LinearLayout
+        android:id="@+id/linearLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true">
 
+
+        <Button
+            android:layout_marginBottom="15dp"
+            android:id="@+id/button_buildConnect"
+            android:background="@drawable/button_shape"
+            android:layout_gravity="center"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+
+            android:text="创建连接" />
+
+        <Button
+            android:layout_marginBottom="15dp"
+            android:id="@+id/button_joinConnect"
+            android:background="@drawable/button_shape"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="加入连接" />
+
+        <Button
+            android:id="@+id/button_shareFile"
+            android:background="@drawable/button_shape"
+            android:layout_gravity="center"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="我要分享" />
+
+    </LinearLayout>
 </RelativeLayout>
