@@ -3,8 +3,11 @@ package com.example.administrator.ncfss;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.support.annotation.NonNull;
@@ -23,6 +26,10 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
+import com.nononsenseapps.filepicker.FilePickerActivity;
+import com.nononsenseapps.filepicker.Utils;
+
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,6 +59,8 @@ public class MainActivity extends AppCompatActivity
     //申请权限后的返回码
     private static final int REQUEST_CODE_ASK_PERMISSIONS = 1;
 
+    //处理返回的文件地址
+    private static final int FILE_CODE = 0;
     //热点和WiFi操作
     public APHelper mAPHelper = null;
     public TCPServer mTCPServer = null;
@@ -170,10 +179,42 @@ public class MainActivity extends AppCompatActivity
         bt_shareFile.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                //打开文件选择器，只是单选
-                //showFileChooser();
+                //打开文件选择器// This always works
+                Intent i = new Intent(MainActivity.this, FilePickerActivity.class);
+
+                //单选
+                // i.putExtra(FilePickerActivity.EXTRA_ALLOW_MULTIPLE, false);
+                //多选
+                i.putExtra(FilePickerActivity.EXTRA_ALLOW_MULTIPLE, true);
+                i.putExtra(FilePickerActivity.EXTRA_ALLOW_CREATE_DIR, false);
+                i.putExtra(FilePickerActivity.EXTRA_MODE, FilePickerActivity.MODE_FILE);
+                //设置开始时的路径
+                i.putExtra(FilePickerActivity.EXTRA_START_PATH, Environment.getExternalStorageDirectory().getPath());
+                //i.putExtra(FilePickerActivity.EXTRA_START_PATH, "/storage/emulated/0/DCIM");
+                startActivityForResult(i, FILE_CODE);
             }
         });
+
+    }
+
+    /**
+     * 处理文件选择器返回的文件地址
+     * @param requestCode
+     * @param resultCode
+     * @param data
+     */
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == FILE_CODE && resultCode == Activity.RESULT_OK) {
+            // Use the provided utility method to parse the result
+            List<Uri> files = Utils.getSelectedFilesFromResult(data);
+            for (Uri uri : files) {
+                File file = Utils.getFileForUri(uri);
+                String fileName=file.getName();
+                Toast.makeText(this, fileName, Toast.LENGTH_SHORT).show();
+                // Do something with the result...
+            }
+        }
 
     }
 
@@ -287,6 +328,11 @@ public class MainActivity extends AppCompatActivity
         switch (item.getItemId()) {
             case R.id.nav_openFolder:
                 //打开应用文件夹
+                String path="/storage/emulated/0/DCIM";
+                Intent intent=new Intent(MainActivity.this,FilesListViewActivity.class);
+                intent.putExtra("data_path",path);
+                //intent.putExtra("data_path",myFileRevPath);
+                startActivity(intent);
                 //FileUtils.openAssignFolder(MainActivity.this, myFolderPath);
                 break;
             case R.id.nav_feedback:
