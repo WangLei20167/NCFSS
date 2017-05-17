@@ -41,4 +41,5 @@ dependencies {
     //    文件选择器
     compile 'com.nononsenseapps:filepicker:4.1.0'
 
+    compile 'com.google.android.gms:play-services-appindexing:8.4.0'
 }

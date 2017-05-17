@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
+import android.os.Process;
 import android.support.annotation.NonNull;
 import android.support.design.widget.NavigationView;
 import android.support.v4.app.ActivityCompat;
@@ -24,6 +25,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import com.nononsenseapps.filepicker.FilePickerActivity;
@@ -33,8 +35,8 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-import Utils.AppFolder;
 import msg.MsgValue;
+import utils.MyFileUtils;
 import wifi.APHelper;
 import wifi.TCPClient;
 import wifi.TCPServer;
@@ -45,6 +47,7 @@ public class MainActivity extends AppCompatActivity
 
     //所需要申请的权限数组
     private static final String[] permissionsArray = new String[]{
+            Manifest.permission.READ_PHONE_STATE,
             Manifest.permission.INTERNET,
             Manifest.permission.ACCESS_NETWORK_STATE,
             Manifest.permission.WRITE_EXTERNAL_STORAGE,
@@ -60,13 +63,15 @@ public class MainActivity extends AppCompatActivity
     private static final int REQUEST_CODE_ASK_PERMISSIONS = 1;
 
     //处理返回的文件地址
+    public String startPath = "";   //记住上次地址，作为再次开始的目录
     private static final int FILE_CODE = 0;
     //热点和WiFi操作
     public APHelper mAPHelper = null;
     public TCPServer mTCPServer = null;
     public boolean OpenSocketServerPort = false;   //作为端口是否开启的标志
     public TCPClient mTcpClient = null;
-    public AppFolder mAppFolder = null;        //用以文件操作
+    public WifiAdmin mWifiAdmin = null;
+
     public String myFolderPath = "";      //app目录
     public String myTempPath = "";        //暂存目录
     public String myFileRevPath = "";     //已接收文件目录
@@ -79,6 +84,11 @@ public class MainActivity extends AppCompatActivity
     public Button bt_joinConnect;
     public Button bt_shareFile;
 
+    //progressBar
+    private ProgressBar progressBar;
+
+    //用来记录现在是服务器还是客户端
+    public String server_clien="";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -97,48 +107,59 @@ public class MainActivity extends AppCompatActivity
 
         //检查权限
         checkRequiredPermission(MainActivity.this);
-        //文件操作
-        mAppFolder = new AppFolder();
-        if (mAppFolder.createPath("hanhaiKuaiChuan")) {
-            //记录下三个文件夹的路径
-            myFolderPath = mAppFolder.FolderPath;
-            myTempPath = mAppFolder.TempPath;
-            myFileRevPath = mAppFolder.FileRevPath;
+        //文件夹操作，创建数据存储文件夹
+        myFolderPath = MyFileUtils.creatFolder(Environment.getExternalStorageDirectory().getPath(), "HHFSS");
+        myTempPath = MyFileUtils.creatFolder(myFolderPath, "Temp");
+        myFileRevPath = MyFileUtils.creatFolder(myFolderPath, "FileRev");
 
-            //用以打开热点,如果ap已经打开则先关闭
-            mAPHelper = new APHelper(MainActivity.this);
-            if (mAPHelper.isApEnabled()) {
-                mAPHelper.setWifiApEnabled(null, false);
-            }
-            //用以处理SocketServer
-            mTCPServer = new TCPServer(MainActivity.this, myTempPath, myFileRevPath);
-            //用以连接Server Socket
-            mTcpClient = new TCPClient(MainActivity.this, myTempPath, myFileRevPath, handler);
+        //用以打开热点,如果ap已经打开则先关闭
+        mAPHelper = new APHelper(MainActivity.this);
+//        if (mAPHelper.isApEnabled()) {
+//            mAPHelper.setWifiApEnabled(null, false);
+//        }
+        //用以处理SocketServer
+        mTCPServer = new TCPServer(MainActivity.this, myTempPath, myFileRevPath,handler);
+        //用以连接Server Socket
+        mTcpClient = new TCPClient(MainActivity.this, myTempPath, myFileRevPath, handler);
+        //管理wifi
+        mWifiAdmin = new WifiAdmin(MainActivity.this);
+
+        byte[] bt_startPath = MyFileUtils.readFile(myFolderPath, "fpStartPath.txt");
+        if (bt_startPath == null) {
+            startPath = "";
         } else {
-            Toast.makeText(this, "文件夹创建失败,app无法正常使用", Toast.LENGTH_SHORT).show();
+            startPath = new String(bt_startPath);
         }
 
+        //等待效果
+        progressBar = (ProgressBar) findViewById(R.id.progressBar);
         bt_buildConnect = (Button) findViewById(R.id.button_buildConnect);
         bt_buildConnect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+
+                server_clien="isServer";
                 //打开监听端口
                 //mTCPServer.StartServer();
+                // progressBar.setVisibility(View.VISIBLE);
+                //progressBar.setVisibility(View.GONE);
                 if (!OpenSocketServerPort) {
                     mTCPServer.StartServer();
                     OpenSocketServerPort = true;
                 }
 
+
                 new Thread(new Runnable() {
                     @Override
                     public void run() {
+
                         if (!mAPHelper.isApEnabled()) {
                             //打开热点
                             if (mAPHelper.setWifiApEnabled(APHelper.createWifiCfg(), true)) {
                                 //成功
-                                Message APOpenSuceess = new Message();
-                                APOpenSuceess.what = MsgValue.APOPENSUCCESS;
-                                handler.sendMessage(APOpenSuceess);
+                                Message APOpenSuccess = new Message();
+                                APOpenSuccess.what = MsgValue.APOPENSUCCESS;
+                                handler.sendMessage(APOpenSuccess);
                                 //Toast.makeText(MainActivity.this, "热点开启", Toast.LENGTH_SHORT).show();
                             } else {
                                 //失败
@@ -159,6 +180,7 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void onClick(View view) {
 
+                server_clien="isClient";
                 // 如果热点已经打开，需要先关闭热点
                 if (mAPHelper.isApEnabled()) {
                     mAPHelper.setWifiApEnabled(null, false);
@@ -179,9 +201,12 @@ public class MainActivity extends AppCompatActivity
         bt_shareFile.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                //打开文件选择器// This always works
-                Intent i = new Intent(MainActivity.this, FilePickerActivity.class);
 
+                //打开文件选择器
+                if (startPath.equals("")) {
+                    startPath = Environment.getExternalStorageDirectory().getPath();
+                }
+                Intent i = new Intent(MainActivity.this, FilePickerActivity.class);
                 //单选
                 // i.putExtra(FilePickerActivity.EXTRA_ALLOW_MULTIPLE, false);
                 //多选
@@ -189,7 +214,7 @@ public class MainActivity extends AppCompatActivity
                 i.putExtra(FilePickerActivity.EXTRA_ALLOW_CREATE_DIR, false);
                 i.putExtra(FilePickerActivity.EXTRA_MODE, FilePickerActivity.MODE_FILE);
                 //设置开始时的路径
-                i.putExtra(FilePickerActivity.EXTRA_START_PATH, Environment.getExternalStorageDirectory().getPath());
+                i.putExtra(FilePickerActivity.EXTRA_START_PATH, startPath);
                 //i.putExtra(FilePickerActivity.EXTRA_START_PATH, "/storage/emulated/0/DCIM");
                 startActivityForResult(i, FILE_CODE);
             }
@@ -199,6 +224,7 @@ public class MainActivity extends AppCompatActivity
 
     /**
      * 处理文件选择器返回的文件地址
+     *
      * @param requestCode
      * @param resultCode
      * @param data
@@ -210,12 +236,38 @@ public class MainActivity extends AppCompatActivity
             List<Uri> files = Utils.getSelectedFilesFromResult(data);
             for (Uri uri : files) {
                 File file = Utils.getFileForUri(uri);
-                String fileName=file.getName();
-                Toast.makeText(this, fileName, Toast.LENGTH_SHORT).show();
+                startPath = file.getParent();
+                //结束循环
+                break;
                 // Do something with the result...
             }
+
+//            for (Uri uri : files) {
+//                File file = Utils.getFileForUri(uri);
+//                String fileName = file.getName();
+//                Toast.makeText(this, fileName, Toast.LENGTH_SHORT).show();
+//                // Do something with the result...
+//            }
+
+            sendFiles(files);
         }
 
+    }
+
+    public void sendFiles(final List<Uri> files) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                if(server_clien.equals("isServer")){
+                    mTCPServer.SendFile(files);
+                }else if(server_clien.equals("isClient")){
+                    mTcpClient.sendFile(files);
+                }else{
+                    return;
+                }
+
+            }
+        }).start();
     }
 
     //连接热点
@@ -224,11 +276,13 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void run() {
                 //连接指定wifi
-                WifiAdmin mWifiAdmin = new WifiAdmin(MainActivity.this);
                 mWifiAdmin.openWifi();
                 mWifiAdmin.connectAppointedNet();
+
                 //连接Server Socket
                 mTcpClient.connectServer();
+
+
             }
         }).start();
     }
@@ -240,18 +294,52 @@ public class MainActivity extends AppCompatActivity
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
-                case MsgValue.REVFINISH:
-                    //接收数据成功，开始解码操作
-                    int fileNum = msg.arg1;
-                    String tempDataPath = msg.obj.toString();
-                    Toast.makeText(MainActivity.this, "接收数据成功开始解码", Toast.LENGTH_SHORT).show();
-                    break;
+
                 case MsgValue.APOPENSUCCESS:
                     Toast.makeText(MainActivity.this, "热点开启", Toast.LENGTH_SHORT).show();
                     break;
                 case MsgValue.APOPENFAILED:
                     Toast.makeText(MainActivity.this, "打开热点失败", Toast.LENGTH_SHORT).show();
                     break;
+
+                //处理 TCPClient的信息
+                case MsgValue.CONNECT_SF:
+                    //连接成功或失败
+                    Toast.makeText(MainActivity.this, msg.obj.toString(), Toast.LENGTH_SHORT).show();
+                    break;
+                case MsgValue.SP_NAME:
+                    //接收父手机名字
+                    String sp_name=msg.obj.toString();
+                    Toast.makeText(MainActivity.this, "已连接到"+msg.obj.toString(), Toast.LENGTH_SHORT).show();
+                    break;
+                case MsgValue.C_REVFINISH:
+                    //接收成功
+                    //String tempDataPath = msg.obj.toString();
+                    Toast.makeText(MainActivity.this, msg.obj.toString(), Toast.LENGTH_SHORT).show();
+                    break;
+                case MsgValue.C_REV_ERROR_FILELEN:
+                    Toast.makeText(MainActivity.this, msg.obj.toString(), Toast.LENGTH_SHORT).show();
+                    break;
+
+
+                //处理TCPServer信息
+                case MsgValue.CP_NAME:
+                    String cp_name=msg.obj.toString();
+                    Toast.makeText(MainActivity.this, msg.obj.toString()+"已连接", Toast.LENGTH_SHORT).show();
+                    break;
+                case MsgValue.SFOPEN_LISTENER:
+                    //开启监听端口成功或失败
+                    Toast.makeText(MainActivity.this, msg.obj.toString(), Toast.LENGTH_SHORT).show();
+                    break;
+                case MsgValue.S_REVFINISH:
+                    //接收成功
+                    //String tempDataPath = msg.obj.toString();
+                    Toast.makeText(MainActivity.this, msg.obj.toString(), Toast.LENGTH_SHORT).show();
+                    break;
+                case MsgValue.S_REV_ERROR_FILELEN:
+                    Toast.makeText(MainActivity.this, msg.obj.toString(), Toast.LENGTH_SHORT).show();
+                    break;
+
                 default:
                     break;
             }
@@ -282,10 +370,12 @@ public class MainActivity extends AppCompatActivity
                 mExitTime = System.currentTimeMillis();
 
             } else {
+                //将文件选择器的开始目录写入文件
+                MyFileUtils.writeToFile(myFolderPath, "fpStartPath.txt", startPath.getBytes());
                 //执行退出操作,并释放资源
                 finish();
                 //Dalvik VM的本地方法完全退出app
-                android.os.Process.killProcess(android.os.Process.myPid());    //获取PID
+                Process.killProcess(Process.myPid());    //获取PID
                 System.exit(0);   //常规java、c#的标准退出法，返回值为0代表正常退出
             }
             return true;
@@ -328,10 +418,10 @@ public class MainActivity extends AppCompatActivity
         switch (item.getItemId()) {
             case R.id.nav_openFolder:
                 //打开应用文件夹
-                String path="/storage/emulated/0/DCIM";
-                Intent intent=new Intent(MainActivity.this,FilesListViewActivity.class);
-                intent.putExtra("data_path",path);
-                //intent.putExtra("data_path",myFileRevPath);
+                //String path="/storage/emulated/0/DCIM";
+                Intent intent = new Intent(MainActivity.this, FilesListViewActivity.class);
+                //intent.putExtra("data_path",path);
+                intent.putExtra("data_path", myFileRevPath);
                 startActivity(intent);
                 //FileUtils.openAssignFolder(MainActivity.this, myFolderPath);
                 break;
@@ -393,7 +483,7 @@ public class MainActivity extends AppCompatActivity
             case REQUEST_CODE_ASK_PERMISSIONS:
                 for (int i = 0; i < permissions.length; i++) {
                     if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
-                        Toast.makeText(MainActivity.this, "做一些申请成功的权限对应的事！" + permissions[i], Toast.LENGTH_SHORT).show();
+                        //Toast.makeText(MainActivity.this, "做一些申请成功的权限对应的事！" + permissions[i], Toast.LENGTH_SHORT).show();
                     } else {
                         Toast.makeText(MainActivity.this, "权限被拒绝： " + permissions[i], Toast.LENGTH_SHORT).show();
                     }
@@ -403,4 +493,6 @@ public class MainActivity extends AppCompatActivity
                 super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         }
     }
+
+
 }

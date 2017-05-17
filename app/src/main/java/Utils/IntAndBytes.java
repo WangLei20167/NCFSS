@@ -1,4 +1,4 @@
-package Utils;
+package utils;
 
 /**
  * Created by Administrator on 2017/5/6 0006.
@@ -23,5 +23,15 @@ public class IntAndBytes {
         int targets = (res[0] & 0xff) | ((res[1] << 8) & 0xff00) // | 表示安位或
                 | ((res[2] << 24) >>> 8) | (res[3] << 24);
         return targets;
+    }
+
+    //java byte范围 -128到127，若是存的值为负返回int型正数
+    public static int negByte2int(byte bt){
+        if(bt<0){
+            int abs=Math.abs(bt);
+            return 256-abs;
+        }else{
+            return bt;
+        }
     }
 }

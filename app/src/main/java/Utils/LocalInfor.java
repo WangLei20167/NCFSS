@@ -1,4 +1,4 @@
-package Utils;
+package utils;
 
 import android.content.Context;
 import android.telephony.TelephonyManager;
@@ -27,6 +27,17 @@ public class LocalInfor {
         Date curDate = new Date();
         String str = format.format(curDate);
         return str;
+    }
+
+
+    /**
+     * 获取手机的品牌型号
+     * @return
+     */
+    public static String getPhoneModel(){
+        String mtyb= android.os.Build.BRAND;//手机品牌
+        String mtype = android.os.Build.MODEL; // 手机型号
+        return mtyb+" "+mtype;
     }
 
     /**
