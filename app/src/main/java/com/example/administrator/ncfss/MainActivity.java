@@ -20,22 +20,28 @@ import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.text.Layout;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import com.github.lzyzsd.circleprogress.CircleProgress;
 import com.nononsenseapps.filepicker.FilePickerActivity;
 import com.nononsenseapps.filepicker.Utils;
+import com.skyfishjy.library.RippleBackground;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
 import msg.MsgValue;
+import utils.LocalInfor;
 import utils.MyFileUtils;
 import wifi.APHelper;
 import wifi.TCPClient;
@@ -88,7 +94,30 @@ public class MainActivity extends AppCompatActivity
     private ProgressBar progressBar;
 
     //用来记录现在是服务器还是客户端
-    public String server_clien="";
+    public String server_client = "";
+
+
+    //用来实现水波纹和进度球
+    private boolean wavOpen=false;
+    //client
+    private RippleBackground ripple_client;
+    private CircleProgress cirPro_client;
+    private TextView tv_myPhoneName;
+    private CircleProgress cirPro_server;
+    private TextView tv_serverPhoneName;
+    //server
+    private RippleBackground ripple_server;
+    private CircleProgress circleProgress0;
+    private TextView tv_phoneName0;
+    //处理连接的4个手机
+    private CircleProgress circleProgress1;
+    private TextView tv_phoneName1;
+    private CircleProgress circleProgress2;
+    private TextView tv_phoneName2;
+    private CircleProgress circleProgress3;
+    private TextView tv_phoneName3;
+    private CircleProgress circleProgress4;
+    private TextView tv_phoneName4;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -105,6 +134,9 @@ public class MainActivity extends AppCompatActivity
         NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
 
+        //初始化水波纹和进度球
+        initWavCirclePro();
+
         //检查权限
         checkRequiredPermission(MainActivity.this);
         //文件夹操作，创建数据存储文件夹
@@ -118,7 +150,7 @@ public class MainActivity extends AppCompatActivity
 //            mAPHelper.setWifiApEnabled(null, false);
 //        }
         //用以处理SocketServer
-        mTCPServer = new TCPServer(MainActivity.this, myTempPath, myFileRevPath,handler);
+        mTCPServer = new TCPServer(MainActivity.this, myTempPath, myFileRevPath, handler);
         //用以连接Server Socket
         mTcpClient = new TCPClient(MainActivity.this, myTempPath, myFileRevPath, handler);
         //管理wifi
@@ -138,7 +170,9 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void onClick(View view) {
 
-                server_clien="isServer";
+                server_client = "isServer";
+
+                startWav(server_client);
                 //打开监听端口
                 //mTCPServer.StartServer();
                 // progressBar.setVisibility(View.VISIBLE);
@@ -180,7 +214,7 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void onClick(View view) {
 
-                server_clien="isClient";
+                server_client = "isClient";
                 // 如果热点已经打开，需要先关闭热点
                 if (mAPHelper.isApEnabled()) {
                     mAPHelper.setWifiApEnabled(null, false);
@@ -190,6 +224,9 @@ public class MainActivity extends AppCompatActivity
                     //GetIpAddress();
                     Toast.makeText(MainActivity.this, "热点关闭", Toast.LENGTH_SHORT).show();
                 }
+
+                //开始水波纹
+                startWav(server_client);
                 //连接WiFi
                 connectWifi();
 
@@ -202,7 +239,9 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void onClick(View view) {
 
-                //打开文件选择器
+                //测试水波纹
+                //  rippleBackground.startRippleAnimation();
+//                //打开文件选择器
                 if (startPath.equals("")) {
                     startPath = Environment.getExternalStorageDirectory().getPath();
                 }
@@ -258,11 +297,11 @@ public class MainActivity extends AppCompatActivity
         new Thread(new Runnable() {
             @Override
             public void run() {
-                if(server_clien.equals("isServer")){
+                if (server_client.equals("isServer")) {
                     mTCPServer.SendFile(files);
-                }else if(server_clien.equals("isClient")){
+                } else if (server_client.equals("isClient")) {
                     mTcpClient.sendFile(files);
-                }else{
+                } else {
                     return;
                 }
 
@@ -287,6 +326,10 @@ public class MainActivity extends AppCompatActivity
         }).start();
     }
 
+
+
+
+
     /**
      * 处理消息
      */
@@ -309,8 +352,8 @@ public class MainActivity extends AppCompatActivity
                     break;
                 case MsgValue.SP_NAME:
                     //接收父手机名字
-                    String sp_name=msg.obj.toString();
-                    Toast.makeText(MainActivity.this, "已连接到"+msg.obj.toString(), Toast.LENGTH_SHORT).show();
+                    String sp_name = msg.obj.toString();
+                    Toast.makeText(MainActivity.this, "已连接到" + msg.obj.toString(), Toast.LENGTH_SHORT).show();
                     break;
                 case MsgValue.C_REVFINISH:
                     //接收成功
@@ -324,8 +367,8 @@ public class MainActivity extends AppCompatActivity
 
                 //处理TCPServer信息
                 case MsgValue.CP_NAME:
-                    String cp_name=msg.obj.toString();
-                    Toast.makeText(MainActivity.this, msg.obj.toString()+"已连接", Toast.LENGTH_SHORT).show();
+                    String cp_name = msg.obj.toString();
+                    Toast.makeText(MainActivity.this, msg.obj.toString() + "已连接", Toast.LENGTH_SHORT).show();
                     break;
                 case MsgValue.SFOPEN_LISTENER:
                     //开启监听端口成功或失败
@@ -461,6 +504,140 @@ public class MainActivity extends AppCompatActivity
         // DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         // drawer.closeDrawer(GravityCompat.START);
         return true;
+    }
+
+    /**
+     * 用来初始化水波纹控件和圆形进度控件
+     */
+    private void initWavCirclePro() {
+        //client
+        ripple_client = (RippleBackground) findViewById(R.id.waterWav_client);
+        cirPro_client = (CircleProgress) findViewById(R.id.circle_progress_client);
+        tv_myPhoneName = (TextView) findViewById(R.id.tv_phone_name_client);
+        cirPro_server = (CircleProgress) findViewById(R.id.circle_progress_server);
+        tv_serverPhoneName = (TextView) findViewById(R.id.tv_phone_name_server);
+
+
+        //server
+        ripple_server = (RippleBackground) findViewById(R.id.waterWav_server);
+
+        //本手机
+        circleProgress0 = (CircleProgress) findViewById(R.id.circle_progress0);
+        tv_phoneName0 = (TextView) findViewById(R.id.tv_phone_name0);
+
+        //处理连接来的手机
+        circleProgress1 = (CircleProgress) findViewById(R.id.circle_progress1);
+        tv_phoneName1 = (TextView) findViewById(R.id.tv_phone_name1);
+
+        circleProgress2 = (CircleProgress) findViewById(R.id.circle_progress2);
+        tv_phoneName2 = (TextView) findViewById(R.id.tv_phone_name2);
+
+        circleProgress3 = (CircleProgress) findViewById(R.id.circle_progress3);
+        tv_phoneName3 = (TextView) findViewById(R.id.tv_phone_name3);
+
+        circleProgress4 = (CircleProgress) findViewById(R.id.circle_progress4);
+        tv_phoneName4 = (TextView) findViewById(R.id.tv_phone_name4);
+
+    }
+    /**
+     * 开始水波纹
+     * @param type
+     */
+    public void startWav(String type) {
+        //开始之前首先关闭正在执行的水波纹
+        stopWav(checkWavState());
+        if (type.equals("isClient")) {
+            ripple_client.setVisibility(View.VISIBLE);
+            cirPro_client.setVisibility(View.VISIBLE);
+            tv_myPhoneName.setVisibility(View.VISIBLE);
+            cirPro_client.setProgress(0);
+            tv_myPhoneName.setText(LocalInfor.getPhoneModel());
+            //开始水波纹
+            ripple_client.startRippleAnimation();
+        }else if(type.equals("isServer")){
+            ripple_server.setVisibility(View.VISIBLE);
+            circleProgress0.setVisibility(View.VISIBLE);
+            tv_phoneName0.setVisibility(View.VISIBLE);
+            circleProgress0.setProgress(0);
+            tv_phoneName0.setText(LocalInfor.getPhoneModel());
+            ripple_server.startRippleAnimation();
+        }
+    }
+
+    /**
+     * 结束水波纹
+     * @param type
+     */
+    public void stopWav(String type) {
+        if (type.equals("isClient")) {
+            ripple_client.stopRippleAnimation();
+            ripple_client.setVisibility(View.GONE);
+
+            cirPro_client.setVisibility(View.GONE);
+            tv_myPhoneName.setVisibility(View.GONE);
+
+            tv_serverPhoneName.setText("");
+            cirPro_server.setVisibility(View.GONE);
+            tv_serverPhoneName.setVisibility(View.GONE);
+
+        }else if(type.equals("isServer")){
+            ripple_server.stopRippleAnimation();
+
+            ripple_server.setVisibility(View.GONE);
+            circleProgress0.setVisibility(View.GONE);
+            tv_phoneName0.setVisibility(View.GONE);
+
+            circleProgress1.setVisibility(View.GONE);
+            tv_phoneName1.setVisibility(View.GONE);
+
+            circleProgress2.setVisibility(View.GONE);
+            tv_phoneName2.setVisibility(View.GONE);
+
+            circleProgress3.setVisibility(View.GONE);
+            tv_phoneName3.setVisibility(View.GONE);
+
+            circleProgress4.setVisibility(View.GONE);
+            tv_phoneName4.setVisibility(View.GONE);
+        }else{
+
+        }
+    }
+
+    /**
+     * 检查wav的状态
+     * @return
+     */
+    public String checkWavState(){
+        if(ripple_client.isRippleAnimationRunning()){
+            return "isClient";
+        }else if(ripple_server.isRippleAnimationRunning()){
+            return "isServer";
+        }else{
+            return "";
+        }
+    }
+
+    /**
+     * 添加圆形进度控件
+     * @param circleProgress
+     * @param tv
+     * @param phoneName
+     */
+    public void addCirclePro(CircleProgress circleProgress,TextView tv,String phoneName){
+        circleProgress.setProgress(0);
+        tv.setText(phoneName);
+        circleProgress.setVisibility(View.VISIBLE);
+        tv.setVisibility(View.VISIBLE);
+    }
+
+    /**
+     * 删除指定的圆形进度控件
+     * @param circleProgress
+     * @param tv
+     */
+    public void deleteCirPro(CircleProgress circleProgress,TextView tv){
+        circleProgress.setVisibility(View.GONE);
+        tv.setVisibility(View.GONE);
     }
 
     //检查和申请权限

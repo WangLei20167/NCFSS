@@ -35,9 +35,10 @@ public class LocalInfor {
      * @return
      */
     public static String getPhoneModel(){
-        String mtyb= android.os.Build.BRAND;//手机品牌
+       // String mtyb= android.os.Build.BRAND;//手机品牌
         String mtype = android.os.Build.MODEL; // 手机型号
-        return mtyb+" "+mtype;
+       // return mtyb+" "+mtype;
+        return mtype;
     }
 
     /**

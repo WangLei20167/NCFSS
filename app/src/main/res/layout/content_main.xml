@@ -10,53 +10,279 @@
     android:paddingRight="@dimen/activity_horizontal_margin"
     android:paddingTop="@dimen/activity_vertical_margin"
     app:layout_behavior="@string/appbar_scrolling_view_behavior"
-    tools:context="com.example.administrator.ncfss.MainActivity"
-    >
+    tools:context="com.example.administrator.ncfss.MainActivity">
+
 
     <LinearLayout
         android:id="@+id/linearLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
         android:layout_alignParentBottom="true"
         android:layout_alignParentLeft="true"
-        android:layout_alignParentStart="true">
+        android:layout_alignParentStart="true"
+        android:orientation="vertical">
 
 
         <Button
-            android:layout_marginBottom="15dp"
             android:id="@+id/button_buildConnect"
-            android:background="@drawable/button_shape"
-            android:layout_gravity="center"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginBottom="15dp"
+            android:background="@drawable/button_shape"
 
             android:text="创建连接" />
 
         <Button
-            android:layout_marginBottom="15dp"
             android:id="@+id/button_joinConnect"
-            android:background="@drawable/button_shape"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
+            android:layout_marginBottom="15dp"
+            android:background="@drawable/button_shape"
             android:text="加入连接" />
 
         <Button
             android:id="@+id/button_shareFile"
-            android:background="@drawable/button_shape"
-            android:layout_gravity="center"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/button_shape"
             android:text="我要分享" />
 
     </LinearLayout>
 
     <ProgressBar
         android:id="@+id/progressBar"
-        android:visibility="gone"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
         android:layout_centerVertical="true"
-        android:layout_centerHorizontal="true" />
+        android:visibility="gone" />
+
+    <!--处理加入连接的情况-->
+    <com.skyfishjy.library.RippleBackground
+        android:visibility="gone"
+        android:id="@+id/waterWav_client"
+        android:layout_width="300dp"
+        android:layout_height="300dp"
+
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        app:rb_color="#00CD00"
+        app:rb_duration="3000"
+        app:rb_radius="32dp"
+        app:rb_rippleAmount="3"
+        app:rb_scale="6">
+
+        <com.github.lzyzsd.circleprogress.CircleProgress
+            android:layout_centerInParent="true"
+            android:id="@+id/circle_progress_client"
+            android:layout_width="60dp"
+            android:layout_height="60dp" />
+
+        <TextView
+            android:layout_centerHorizontal="true"
+            android:id="@+id/tv_phone_name_client"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+
+            android:layout_below="@+id/circle_progress_client"
+            android:text="" />
+
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true">
+
+
+            <LinearLayout
+                android:id="@+id/linearLayout_server"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+
+                android:orientation="vertical"
+                android:layout_centerVertical="true"
+                android:layout_alignParentRight="true"
+                android:layout_alignParentEnd="true">
+
+                <com.github.lzyzsd.circleprogress.CircleProgress
+                    android:visibility="gone"
+                    android:id="@+id/circle_progress_server"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp" />
+
+                <TextView
+                    android:visibility="gone"
+                    android:id="@+id/tv_phone_name_server"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+
+                    android:layout_below="@+id/circle_progress1"
+                    android:text="" />
+
+            </LinearLayout>
+        </RelativeLayout>
+
+    </com.skyfishjy.library.RippleBackground>
+
+
+
+    <!--处理创建连接的情况-->
+    <com.skyfishjy.library.RippleBackground
+        android:id="@+id/waterWav_server"
+        android:layout_width="300dp"
+        android:layout_height="300dp"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+
+        android:visibility="gone"
+
+        app:rb_color="#0099CC"
+        app:rb_duration="3000"
+        app:rb_radius="32dp"
+        app:rb_rippleAmount="4"
+        app:rb_scale="6">
+
+        <com.github.lzyzsd.circleprogress.CircleProgress
+            android:id="@+id/circle_progress0"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:layout_centerInParent="true" />
+
+        <TextView
+            android:id="@+id/tv_phone_name0"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/circle_progress0"
+            android:layout_centerHorizontal="true"
+            android:text="" />
+
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true">
+
+
+            <LinearLayout
+
+                android:id="@+id/linearLayout1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentRight="true"
+                android:layout_centerVertical="true"
+
+                android:orientation="vertical"
+                >
+
+                <com.github.lzyzsd.circleprogress.CircleProgress
+                    android:id="@+id/circle_progress1"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp"
+                    android:visibility="gone"/>
+
+                <TextView
+                    android:visibility="gone"
+                    android:id="@+id/tv_phone_name1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+
+                    android:layout_below="@+id/circle_progress1"
+                    android:text="" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/linearLayout2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentTop="true"
+                android:layout_centerHorizontal="true"
+                android:layout_marginTop="14dp"
+                android:orientation="vertical"
+                >
+
+                <com.github.lzyzsd.circleprogress.CircleProgress
+                    android:id="@+id/circle_progress2"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp"
+                    android:visibility="gone"/>
+
+                <TextView
+                    android:visibility="gone"
+                    android:id="@+id/tv_phone_name2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+
+                    android:layout_below="@+id/circle_progress2"
+                    android:text="" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/linearLayout3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentLeft="true"
+                android:layout_alignParentStart="true"
+                android:layout_centerVertical="true"
+                android:orientation="vertical"
+
+                >
+
+                <com.github.lzyzsd.circleprogress.CircleProgress
+                    android:id="@+id/circle_progress3"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp"
+                    android:visibility="gone"/>
+
+                <TextView
+                    android:visibility="gone"
+                    android:id="@+id/tv_phone_name3"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+
+                    android:layout_below="@+id/circle_progress3"
+                    android:text="" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/linearLayout4"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentBottom="true"
+
+                android:layout_centerHorizontal="true"
+                android:orientation="vertical"
+
+                >
+
+                <com.github.lzyzsd.circleprogress.CircleProgress
+                    android:visibility="gone"
+                    android:id="@+id/circle_progress4"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp" />
+
+                <TextView
+                    android:visibility="gone"
+                    android:id="@+id/tv_phone_name4"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+
+                    android:layout_below="@+id/circle_progress4"
+                    android:text="" />
+            </LinearLayout>
+
+
+        </RelativeLayout>
+
+
+    </com.skyfishjy.library.RippleBackground>
 </RelativeLayout>
