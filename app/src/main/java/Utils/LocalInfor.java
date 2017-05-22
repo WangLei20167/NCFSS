@@ -3,6 +3,7 @@ package utils;
 import android.content.Context;
 import android.telephony.TelephonyManager;
 import android.util.Log;
+import android.view.WindowManager;
 
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -49,6 +50,8 @@ public class LocalInfor {
         String imei = telephonyManager.getDeviceId();
         return imei;
     }
+
+
 
 
     /**

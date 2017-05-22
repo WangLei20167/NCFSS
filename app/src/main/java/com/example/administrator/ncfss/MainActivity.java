@@ -3,6 +3,7 @@ package com.example.administrator.ncfss;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -25,9 +26,11 @@ import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -214,6 +217,8 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void onClick(View view) {
 
+
+
                 server_client = "isClient";
                 // 如果热点已经打开，需要先关闭热点
                 if (mAPHelper.isApEnabled()) {
@@ -275,7 +280,12 @@ public class MainActivity extends AppCompatActivity
             List<Uri> files = Utils.getSelectedFilesFromResult(data);
             for (Uri uri : files) {
                 File file = Utils.getFileForUri(uri);
-                startPath = file.getParent();
+                String s = file.getParent();
+                //如果有改变则写入新的
+                if(!s.equals(startPath)){
+                    MyFileUtils.writeToFile(myFolderPath, "fpStartPath.txt", s.getBytes());
+                }
+                startPath=s;
                 //结束循环
                 break;
                 // Do something with the result...
@@ -355,6 +365,23 @@ public class MainActivity extends AppCompatActivity
                     String sp_name = msg.obj.toString();
                     Toast.makeText(MainActivity.this, "已连接到" + msg.obj.toString(), Toast.LENGTH_SHORT).show();
                     break;
+                case MsgValue.SET_SERVER_CIRPRO:
+                    //显示server的圆形进度球
+                    String serverPhoneName = msg.obj.toString();
+                    addCirclePro(cirPro_server,tv_serverPhoneName,serverPhoneName);
+                    break;
+                case MsgValue.SET_REV_PROGRESS:
+                    //显示接收进度
+                    int progress=msg.arg1;   //进度
+                    //String phoneName=msg.obj.toString();
+                    cirPro_client.setProgress(progress);
+                    break;
+                case MsgValue.SET_SEND_PROGRESS:
+                    //显示发送进度
+                    int send_progress=msg.arg1;   //进度
+                    //String phoneName=msg.obj.toString();
+                    cirPro_server.setProgress(send_progress);
+                    break;
                 case MsgValue.C_REVFINISH:
                     //接收成功
                     //String tempDataPath = msg.obj.toString();
@@ -373,6 +400,36 @@ public class MainActivity extends AppCompatActivity
                 case MsgValue.SFOPEN_LISTENER:
                     //开启监听端口成功或失败
                     Toast.makeText(MainActivity.this, msg.obj.toString(), Toast.LENGTH_SHORT).show();
+                    break;
+                case MsgValue.S_SET_CLIENT_CIRPRO:
+                    int clientNum=msg.arg1;
+                    String client_phoneName=msg.obj.toString();
+                    addCirclePro(circleProgress1,tv_phoneName1,client_phoneName);
+//                    if(clientNum==1){
+//                        addCirclePro(circleProgress1,tv_phoneName1,client_phoneName);
+//                    } else if (clientNum == 2) {
+//                        addCirclePro(circleProgress2,tv_phoneName2,client_phoneName);
+//                    }else if (clientNum == 3) {
+//                        addCirclePro(circleProgress3,tv_phoneName3,client_phoneName);
+//                    }else if(clientNum==4){
+//                        addCirclePro(circleProgress4,tv_phoneName4,client_phoneName);
+//                    }else{
+//                        //只支持显示4个client
+//                    }
+                    break;
+                case MsgValue.S_SET_REV_PROGRESS:
+                    //设置接收进度
+                    int s_progress=msg.arg1;   //进度
+                    //String s_phoneName=msg.obj.toString();
+                    //本机的进度显示处   0
+                    circleProgress0.setProgress(s_progress);
+                    break;
+                case MsgValue.S_SET_SENT_PROGRESS:
+                    //显示发送进度
+                    int s_send_progress=msg.arg1;   //进度
+                    //int clientNo=msg.arg2;  //是第几个用户
+                    //String s_phoneName=msg.obj.toString();
+                    circleProgress1.setProgress(s_send_progress);
                     break;
                 case MsgValue.S_REVFINISH:
                     //接收成功
@@ -521,6 +578,20 @@ public class MainActivity extends AppCompatActivity
         //server
         ripple_server = (RippleBackground) findViewById(R.id.waterWav_server);
 
+        //获取屏幕的宽高
+//        WindowManager wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+//
+//        int width = wm.getDefaultDisplay().getWidth();
+//        //int height = wm.getDefaultDisplay().getHeight();
+//
+//        //设置控件高等于屏幕宽
+//        RelativeLayout.LayoutParams parms=(RelativeLayout.LayoutParams)ripple_server.getLayoutParams();
+//        parms.height=width;
+//        parms.width=width;
+//        ripple_server.setLayoutParams(parms);
+
+
+
         //本手机
         circleProgress0 = (CircleProgress) findViewById(R.id.circle_progress0);
         tv_phoneName0 = (TextView) findViewById(R.id.tv_phone_name0);
@@ -639,6 +710,8 @@ public class MainActivity extends AppCompatActivity
         circleProgress.setVisibility(View.GONE);
         tv.setVisibility(View.GONE);
     }
+
+
 
     //检查和申请权限
     private void checkRequiredPermission(final Activity activity) {

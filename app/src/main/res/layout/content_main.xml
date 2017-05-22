@@ -62,32 +62,32 @@
 
     <!--处理加入连接的情况-->
     <com.skyfishjy.library.RippleBackground
-        android:visibility="gone"
-        android:id="@+id/waterWav_client"
-        android:layout_width="300dp"
-        android:layout_height="300dp"
 
+        android:id="@+id/waterWav_client"
+        android:layout_width="310dp"
+        android:layout_height="310dp"
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true"
+        android:visibility="gone"
         app:rb_color="#00CD00"
         app:rb_duration="3000"
         app:rb_radius="32dp"
-        app:rb_rippleAmount="3"
+        app:rb_rippleAmount="4"
         app:rb_scale="6">
 
         <com.github.lzyzsd.circleprogress.CircleProgress
-            android:layout_centerInParent="true"
             android:id="@+id/circle_progress_client"
             android:layout_width="60dp"
-            android:layout_height="60dp" />
+            android:layout_height="60dp"
+            android:layout_centerInParent="true" />
 
         <TextView
-            android:layout_centerHorizontal="true"
             android:id="@+id/tv_phone_name_client"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-
             android:layout_below="@+id/circle_progress_client"
+
+            android:layout_centerHorizontal="true"
             android:text="" />
 
 
@@ -104,25 +104,25 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
 
-                android:orientation="vertical"
-                android:layout_centerVertical="true"
+                android:layout_alignParentEnd="true"
                 android:layout_alignParentRight="true"
-                android:layout_alignParentEnd="true">
+                android:layout_centerVertical="true"
+                android:orientation="vertical">
 
                 <com.github.lzyzsd.circleprogress.CircleProgress
-                    android:visibility="gone"
                     android:id="@+id/circle_progress_server"
                     android:layout_width="60dp"
-                    android:layout_height="60dp" />
+                    android:layout_height="60dp"
+                    android:visibility="gone" />
 
                 <TextView
-                    android:visibility="gone"
                     android:id="@+id/tv_phone_name_server"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-
                     android:layout_below="@+id/circle_progress1"
-                    android:text="" />
+
+                    android:text=""
+                    android:visibility="gone" />
 
             </LinearLayout>
         </RelativeLayout>
@@ -130,16 +130,15 @@
     </com.skyfishjy.library.RippleBackground>
 
 
-
     <!--处理创建连接的情况-->
     <com.skyfishjy.library.RippleBackground
         android:id="@+id/waterWav_server"
-        android:layout_width="300dp"
-        android:layout_height="300dp"
+        android:layout_width="310dp"
+        android:layout_height="310dp"
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true"
-
         android:visibility="gone"
+
 
         app:rb_color="#0099CC"
         app:rb_duration="3000"
@@ -151,7 +150,8 @@
             android:id="@+id/circle_progress0"
             android:layout_width="60dp"
             android:layout_height="60dp"
-            android:layout_centerInParent="true" />
+            android:layout_centerInParent="true"
+            app:circle_finished_color="#00CD00"/>
 
         <TextView
             android:id="@+id/tv_phone_name0"
@@ -178,23 +178,23 @@
                 android:layout_alignParentRight="true"
                 android:layout_centerVertical="true"
 
-                android:orientation="vertical"
-                >
+                android:orientation="vertical">
 
                 <com.github.lzyzsd.circleprogress.CircleProgress
                     android:id="@+id/circle_progress1"
                     android:layout_width="60dp"
                     android:layout_height="60dp"
-                    android:visibility="gone"/>
+                    android:visibility="gone"
+                    app:circle_finished_color="#00CD00"/>
 
                 <TextView
-                    android:visibility="gone"
                     android:id="@+id/tv_phone_name1"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-
                     android:layout_below="@+id/circle_progress1"
-                    android:text="" />
+
+                    android:text=""
+                    android:visibility="gone" />
 
             </LinearLayout>
 
@@ -205,23 +205,23 @@
                 android:layout_alignParentTop="true"
                 android:layout_centerHorizontal="true"
                 android:layout_marginTop="14dp"
-                android:orientation="vertical"
-                >
+                android:orientation="vertical">
 
                 <com.github.lzyzsd.circleprogress.CircleProgress
                     android:id="@+id/circle_progress2"
                     android:layout_width="60dp"
                     android:layout_height="60dp"
-                    android:visibility="gone"/>
+                    android:visibility="gone"
+                    app:circle_finished_color="#00CD00"/>
 
                 <TextView
-                    android:visibility="gone"
                     android:id="@+id/tv_phone_name2"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-
                     android:layout_below="@+id/circle_progress2"
-                    android:text="" />
+
+                    android:text=""
+                    android:visibility="gone" />
 
             </LinearLayout>
 
@@ -240,16 +240,17 @@
                     android:id="@+id/circle_progress3"
                     android:layout_width="60dp"
                     android:layout_height="60dp"
-                    android:visibility="gone"/>
+                    android:visibility="gone"
+                    app:circle_finished_color="#00CD00"/>
 
                 <TextView
-                    android:visibility="gone"
                     android:id="@+id/tv_phone_name3"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-
                     android:layout_below="@+id/circle_progress3"
-                    android:text="" />
+
+                    android:text=""
+                    android:visibility="gone" />
 
             </LinearLayout>
 
@@ -265,19 +266,20 @@
                 >
 
                 <com.github.lzyzsd.circleprogress.CircleProgress
-                    android:visibility="gone"
                     android:id="@+id/circle_progress4"
                     android:layout_width="60dp"
-                    android:layout_height="60dp" />
+                    android:layout_height="60dp"
+                    android:visibility="gone"
+                    app:circle_finished_color="#00CD00"/>
 
                 <TextView
-                    android:visibility="gone"
                     android:id="@+id/tv_phone_name4"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-
                     android:layout_below="@+id/circle_progress4"
-                    android:text="" />
+
+                    android:text=""
+                    android:visibility="gone" />
             </LinearLayout>
 
 

@@ -103,6 +103,7 @@ public class TCPClient {
             public void run() {
                 byte[] getBytes = new byte[255];
                 //待接收的文件长度和数目
+                String phoneName="";    //获取手机名称
                 int fileLen = 0;
                 int fileNum = 0;
                 int restFileNum = 0;
@@ -112,17 +113,18 @@ public class TCPClient {
                 boolean getSPInfor=true;    //得到socketSever的手机信息
                 String clientPhoneInfor="";
                 int readBytesNum = -1;
+                //限制读取字节数，防止接收端出现的粘包现象
+                int limit_readNum=getBytes.length;
                 boolean isFirstMsg = true;
                 while (true) {
                     if (socket.isConnected()) {
                         if (!socket.isInputShutdown()) {
                             try {
-                                if ((readBytesNum = in.read(getBytes, 0, 255)) > -1) {
+                                if ((readBytesNum = in.read(getBytes, 0, limit_readNum)) > -1) {
 
                                     if(getSPInfor){
                                         //获得SP_Name
                                         getSPInfor=false;
-                                        String phoneName="";
                                         String str=new String(getBytes,0,readBytesNum);
                                         String[] split =str.split("#");
                                         int flag = 1;
@@ -134,6 +136,7 @@ public class TCPClient {
                                             }
                                         }
                                         SendMessage(MsgValue.SP_NAME, 0, 0, phoneName);
+                                        SendMessage(MsgValue.SET_SERVER_CIRPRO,0,0,phoneName);
                                         //结束这次循环
                                         continue;
                                     }
@@ -171,6 +174,9 @@ public class TCPClient {
 
                                             }
                                         }
+                                        if(fileLen<getBytes.length){
+                                            limit_readNum=fileLen;
+                                        }
                                         //结束这次循环
                                         continue;
                                     }
@@ -183,18 +189,29 @@ public class TCPClient {
                                     while (readBytes < fileLen) {
                                         fos.write(getBytes, 0, readBytesNum);
                                         readBytes += readBytesNum;   //记录已经写入的文件个数
+                                        //设置接收进度
+                                        SendMessage(MsgValue.SET_REV_PROGRESS,(int)((readBytes/(float)fileLen)*100),0,phoneName);
                                         if (readBytes < fileLen) {
-                                            readBytesNum = in.read(getBytes, 0, 255);
+                                            int rest_len=fileLen-readBytes;
+                                            //防止多读取字节
+                                            if(rest_len<255){
+                                                readBytesNum = in.read(getBytes,0,rest_len);
+                                            }else {
+                                                readBytesNum = in.read(getBytes,0,255);
+                                            }
+
                                         }
+                                        //设置接收进度
+
                                     }
                                     fos.close();
                                     isFirstMsg = true;
 
                                     //重新定义缓存流
 
-                                    //in.reset();
-                                    in = new DataInputStream(socket.getInputStream());     //接收
 
+                                   // in = new DataInputStream(socket.getInputStream());     //接收
+                                    limit_readNum=getBytes.length;
 
                                     //文件接收完毕
                                     SendMessage(MsgValue.C_REVFINISH, 0, 0, "接收" + fileName + "成功");
@@ -255,10 +272,12 @@ public class TCPClient {
                 input = new FileInputStream(file);
                 byte[] data = new byte[1024];
                 int len;
+                int already_send_data=0;
                 while ((len = input.read(data)) != -1) {
                     // out.write(data, 0, len);
                     out.write(data, 0, len);
-
+                    already_send_data+=len;
+                    SendMessage(MsgValue.SET_SEND_PROGRESS,(int)((already_send_data/(float)fileLen)*100),0,"");
                     //Arrays.fill(data,(byte)0);
                 }
                 //关闭输入输出流
