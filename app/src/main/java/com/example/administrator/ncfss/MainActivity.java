@@ -34,6 +34,10 @@ import com.nononsenseapps.filepicker.Utils;
 import com.skyfishjy.library.RippleBackground;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,6 +53,10 @@ import wifi.WifiAdmin;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener {
+    // Used to load the 'native-lib' library on application startup.
+    static {
+        System.loadLibrary("native-lib");
+    }
 
     //所需要申请的权限数组
     private static final String[] permissionsArray = new String[]{
@@ -251,9 +259,9 @@ public class MainActivity extends AppCompatActivity
                 }
                 Intent i = new Intent(MainActivity.this, FilePickerActivity.class);
                 //单选
-                // i.putExtra(FilePickerActivity.EXTRA_ALLOW_MULTIPLE, false);
+                i.putExtra(FilePickerActivity.EXTRA_ALLOW_MULTIPLE, false);
                 //多选
-                i.putExtra(FilePickerActivity.EXTRA_ALLOW_MULTIPLE, true);
+                //i.putExtra(FilePickerActivity.EXTRA_ALLOW_MULTIPLE, true);
                 i.putExtra(FilePickerActivity.EXTRA_ALLOW_CREATE_DIR, false);
                 i.putExtra(FilePickerActivity.EXTRA_MODE, FilePickerActivity.MODE_FILE);
                 //设置开始时的路径
@@ -292,6 +300,7 @@ public class MainActivity extends AppCompatActivity
 
 
             //用来更改文件选择器的开始地址
+
             for (Uri uri : files) {
                 File file = Utils.getFileForUri(uri);
                 String s = file.getParent();
@@ -305,10 +314,189 @@ public class MainActivity extends AppCompatActivity
                 // Do something with the result...
             }
 
-            sendFiles(fileList);
+            final File file = fileList.get(0);
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    String path = encode_file(file);
+                    re_encode_file(path);
+                    File file = decode_file(path);
+                }
+            }).start();
+
+            // sendFiles(fileList);
+
         }
 
     }
+
+
+    /**
+     * 对文件进行编码
+     *
+     * @param file
+     */
+    public String encode_file(File file) {
+        int N = 4;
+        int K = 4;
+        int fileLen = (int) (file.length());
+        int perLen = fileLen / K + (fileLen % K != 0 ? 1 : 0);   //处理不可整除时的情况
+        int len = perLen * K;
+        byte[] fileData = new byte[len];
+        try {
+            InputStream in = new FileInputStream(file);
+            //b = new byte[fileLen];
+            in.read(fileData);    //读取文件中的内容到b[]数组
+            in.close();
+        } catch (IOException e) {
+            //Toast.makeText(this, "读取文件异常", Toast.LENGTH_SHORT).show();
+            e.printStackTrace();
+            return null;
+        }
+
+        int colLen = 1 + K + perLen;
+        byte[][] encodeData = new byte[N][colLen];
+        encodeData = Encode(fileData, N, K, perLen);
+
+        String fileName = file.getName();
+        //String prefix=fileName.substring(fileName.lastIndexOf("."));//如果想获得不带点的后缀，变为fileName.lastIndexOf(".")+1
+        //int num=prefix.length();//得到后缀名长度
+        //String fileOtherName=fileName.substring(0, fileName.length()-num);//得到文件名。去掉了后缀
+        String _filename_folder = fileName.substring(0, fileName.lastIndexOf("."));   //获取不含后缀的文件名,作为文件夹名字
+        String encode_file_path = MyFileUtils.creatFolder(myTempPath, _filename_folder);
+        for (int i = 0; i < N; ++i) {
+            // String encode_file_name = (i+1)+"en_" + LocalInfor.getCurrentTime("MMddHHmmss") + "_" + fileName + ".nc";
+            String encode_file_name = "0_" + (i + 1) + "_re_" + fileName + ".nc";   //0代表再编码的次数
+            MyFileUtils.writeToFile(encode_file_path, encode_file_name, encodeData[i]);
+        }
+        return encode_file_path;
+    }
+
+
+    /**
+     * 解码文件    用于解码的数据文件存在一个文件夹下
+     *
+     * @param encodeFilePath
+     */
+    public void re_encode_file(String encodeFilePath) {
+        ArrayList<File> files = MyFileUtils.getListFiles(encodeFilePath);
+        int fileNum = files.size();
+        if (fileNum == 0) {
+            //没有文件
+            return;
+        }
+        int fileLen = (int) (files.get(0).length());  //注意：用于再编码的文件长度必定都是一样的
+        //用于存文件数组
+        byte[][] fileData = new byte[fileNum][fileLen];
+
+        for (int i = 0; i < fileNum; ++i) {
+            File file = files.get(i);
+            try {
+                InputStream in = new FileInputStream(file);
+                //b = new byte[fileLen];
+                in.read(fileData[i]);    //读取文件中的内容到b[]数组
+                in.close();
+            } catch (IOException e) {
+                //Toast.makeText(this, "读取文件异常", Toast.LENGTH_SHORT).show();
+                e.printStackTrace();
+                return;
+            }
+
+        }
+
+        //存再编码结果
+        byte[][] reEncodeData = new byte[fileNum][fileLen];
+        reEncodeData = Reencode(fileData, fileNum, fileLen);
+
+        for (int i = 0; i < fileNum; ++i) {
+            File file = files.get(i);
+            String fileName = file.getName();
+            file.delete();
+            int index_ = fileName.indexOf("_");//查找第一个"_"的位置
+            String str_num = fileName.substring(0, index_);
+            int num = Integer.parseInt(str_num);
+            String sub_fileName = fileName.substring(index_);
+            String reEncodeFileName = (num + 1) + sub_fileName;
+
+            MyFileUtils.writeToFile(encodeFilePath, reEncodeFileName, reEncodeData[i]);
+        }
+        return;
+
+
+    }
+
+    /**
+     * 解码数据
+     *
+     * @param encodeFilePath
+     * @return
+     */
+    public File decode_file(String encodeFilePath) {
+        ArrayList<File> files = MyFileUtils.getListFiles(encodeFilePath);
+        int fileNum = files.size();
+        if (fileNum == 0) {
+            //没有文件
+            return null;
+        }
+        int K = 0;
+        try {
+            //从文件读取K值，在第一个字节
+            FileInputStream stream = new FileInputStream(files.get(0));
+            byte[] b = new byte[1];
+            stream.read(b);
+            K = (int) b[0];
+            stream.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        if (fileNum < K) {
+            //用于解码的文件数目不够
+            return null;
+        }
+
+        int fileLen = (int) (files.get(0).length());  //注意：用于再编码的文件长度必定都是一样的
+        //用于存文件数组
+        byte[][] fileData = new byte[K][fileLen];   //如果文件很多，也只需K个文件
+
+        for (int i = 0; i < K; ++i) {
+            File file = files.get(i);
+            try {
+                InputStream in = new FileInputStream(file);
+                //b = new byte[fileLen];
+                in.read(fileData[i]);    //读取文件中的内容到b[]数组
+                in.close();
+            } catch (IOException e) {
+                //Toast.makeText(this, "读取文件异常", Toast.LENGTH_SHORT).show();
+                e.printStackTrace();
+                return null;
+            }
+
+        }
+
+        //存再编码结果
+        int col = fileLen - 1 - K;
+        byte[][] origin_data = new byte[K][col];
+        origin_data = Decode(fileData, K, fileLen);
+        //二维转化为一维
+        int origin_file_len = K * col;
+        byte[] originData = new byte[origin_file_len];
+        int ii = 0;
+        for (int i = 0; i < K; ++i) {
+            for (int j = 0; j < col; ++j) {
+                originData[ii] = origin_data[i][j];
+                ++ii;
+            }
+        }
+        String encodeFileName = files.get(0).getName();      //"0_" + (i+1) + "_re_" + fileName + ".nc";   //0代表再编码的次数  文件名格式
+        String origin_file_name = encodeFileName.substring(encodeFileName.indexOf("e") + 2, encodeFileName.lastIndexOf("."));
+        MyFileUtils.writeToFile(myTempPath, origin_file_name, originData);
+
+        File file = new File(myTempPath + File.separator + origin_file_name);
+        return file;
+
+    }
+
 
     /**
      * 发送文件
@@ -946,6 +1134,19 @@ public class MainActivity extends AppCompatActivity
                 super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         }
     }
+
+    /**
+     * A native method that is implemented by the 'native-lib' native library,
+     * which is packaged with this application.
+     */
+    //编码函数
+    public native byte[][] Encode(byte[] buffer_, int N, int K, int nLen);
+
+    //再编码函数,nLength为编码文件的总长（1+K+len)
+    public native byte[][] Reencode(byte[][] buffer, int nPart, int nLength);
+
+    //解码函数
+    public native byte[][] Decode(byte[][] buffer, int nPart, int nLength);
 
 
 }

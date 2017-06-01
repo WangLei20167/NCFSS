@@ -22,8 +22,8 @@ public class LocalInfor {
     /**
      * 获取系统当前的时间
      */
-    public static String getCurrentTime() {
-        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    public static String getCurrentTime(String dataFormat) {
+        SimpleDateFormat format = new SimpleDateFormat(dataFormat);//"yyyy-MM-dd HH:mm:ss"
         Date curDate = new Date();
         String str = format.format(curDate);
         return str;
