@@ -17,11 +17,7 @@ import static android.content.Context.WIFI_SERVICE;
 public class APHelper {
 
     private static final String TAG = APHelper.class.getName();
-    //热点名称
-    //public static final String SSID = "YDZS_" + Build.MODEL.replaceAll("\\s|-", "") + "00" + UUID.randomUUID().toString().substring(0, 4);
-    public static final String SSID = "fileSharing";
-    //密码：至少包含八个字符
-    public static final String password="123456789";
+
     public static final int WIFI_AP_STATE_ENABLING = 12;
     public static final int WIFI_AP_STATE_ENABLED = 13;
     public static final int WIFI_AP_STATE_FAILED = 14;
@@ -31,6 +27,7 @@ public class APHelper {
     public APHelper(Context context) {
         this.context = context;
         mWifiManager = (WifiManager) context.getSystemService(WIFI_SERVICE);
+
     }
 
     public boolean isApEnabled() {
@@ -72,7 +69,14 @@ public class APHelper {
     //配置wifi
     public static WifiConfiguration createWifiCfg() {
         WifiConfiguration wifiCfg = new WifiConfiguration();
-        wifiCfg.SSID = Constant.HOST_SPOT_SSID;
+
+//        //获取时间加在ssid后面保证ssid唯一
+//        SimpleDateFormat format = new SimpleDateFormat("HHmmss");
+//        Date curDate = new Date();
+//        String str_time = format.format(curDate);
+
+
+        wifiCfg.SSID = Constant.HOST_SPOT_SSID ;
         wifiCfg.preSharedKey = Constant.HOST_SPOT_PASS_WORD;
 //        wifiCfg.SSID = "\"" + ssid + "\"";
        // wifiCfg.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);

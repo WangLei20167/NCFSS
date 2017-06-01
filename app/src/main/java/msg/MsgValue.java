@@ -19,6 +19,8 @@ public class MsgValue {
     public final static int SET_SERVER_CIRPRO=11;  //当连接到服务器时显示server的圆形进度
     public final static int SET_REV_PROGRESS=12;      //设置接收进度
     public final static int SET_SEND_PROGRESS=13;   //设置发送进度
+    public final static int C_SOCKET_END_FLAG=18;
+    public final static int C_REV_ALL_FINISH=19;   //所有文件接收完毕
 
     /**
      * 处理TCPServer的信息
@@ -28,8 +30,15 @@ public class MsgValue {
     public static final int GETCLIENTFILE = 8;
     public static final int S_REV_ERROR_FILELEN=9;
     public final static int S_REVFINISH=10;   //接收完成
-    public final static int S_SET_CLIENT_CIRPRO=14;  //设置client的圆形进度
+  //  public final static int S_SET_CLIENT_CIRPRO=14;  //设置client的圆形进度
     public final static int S_SET_REV_PROGRESS=15;   //设置接收进度
     public final static int S_SET_SENT_PROGRESS=16;   //设置发送进度
+    public final static int S_SOCET_END_FLAG=17;     //socket关闭
+
+
+    /**
+     * 处理WifiAdmin的消息
+     */
+    //public final static int CONNECT_WIFI_SUCCESS=17;
 
 }

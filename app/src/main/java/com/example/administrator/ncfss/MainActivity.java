@@ -3,7 +3,6 @@ package com.example.administrator.ncfss;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -21,16 +20,11 @@ import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.text.Layout;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.WindowManager;
 import android.widget.Button;
-import android.widget.LinearLayout;
-import android.widget.ProgressBar;
-import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -47,6 +41,8 @@ import msg.MsgValue;
 import utils.LocalInfor;
 import utils.MyFileUtils;
 import wifi.APHelper;
+import wifi.Constant;
+import wifi.MyCircleProgress;
 import wifi.TCPClient;
 import wifi.TCPServer;
 import wifi.WifiAdmin;
@@ -93,15 +89,15 @@ public class MainActivity extends AppCompatActivity
     public Button bt_joinConnect;
     public Button bt_shareFile;
 
-    //progressBar
-    private ProgressBar progressBar;
+    //等待的转圈效果
+    //  private ProgressBar progressBar;
 
     //用来记录现在是服务器还是客户端
     public String server_client = "";
 
 
     //用来实现水波纹和进度球
-    private boolean wavOpen=false;
+    //private boolean wavOpen = false;
     //client
     private RippleBackground ripple_client;
     private CircleProgress cirPro_client;
@@ -121,6 +117,11 @@ public class MainActivity extends AppCompatActivity
     private TextView tv_phoneName3;
     private CircleProgress circleProgress4;
     private TextView tv_phoneName4;
+
+    //用以操作进度球   注意界面中只设置了4个圆形进度球的位置
+    private List<MyCircleProgress> myClientProgressList = new ArrayList<MyCircleProgress>();
+    private List<CircleProgress> client_progress_list = new ArrayList<CircleProgress>();
+    private List<TextView> tv_client_phoneName_list = new ArrayList<TextView>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -157,7 +158,8 @@ public class MainActivity extends AppCompatActivity
         //用以连接Server Socket
         mTcpClient = new TCPClient(MainActivity.this, myTempPath, myFileRevPath, handler);
         //管理wifi
-        mWifiAdmin = new WifiAdmin(MainActivity.this);
+        mWifiAdmin = new WifiAdmin(MainActivity.this, handler);
+
 
         byte[] bt_startPath = MyFileUtils.readFile(myFolderPath, "fpStartPath.txt");
         if (bt_startPath == null) {
@@ -166,34 +168,42 @@ public class MainActivity extends AppCompatActivity
             startPath = new String(bt_startPath);
         }
 
+
         //等待效果
-        progressBar = (ProgressBar) findViewById(R.id.progressBar);
+        //progressBar = (ProgressBar) findViewById(R.id.progressBar);
         bt_buildConnect = (Button) findViewById(R.id.button_buildConnect);
         bt_buildConnect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-
-                server_client = "isServer";
-
-                startWav(server_client);
-                //打开监听端口
-                //mTCPServer.StartServer();
-                // progressBar.setVisibility(View.VISIBLE);
-                //progressBar.setVisibility(View.GONE);
-                if (!OpenSocketServerPort) {
-                    mTCPServer.StartServer();
-                    OpenSocketServerPort = true;
+                //如果已作为client连接到了socket  则先断开
+                if (server_client.equals(Constant.isClient) && mTcpClient.getSocket_flag()) {
+                    //断开
+                    mTcpClient.disconnectServer();
                 }
 
+
+                server_client = Constant.isServer;
+
+                startWav(server_client);
+                // progressBar.setVisibility(View.VISIBLE);
+                //progressBar.setVisibility(View.GONE);
 
                 new Thread(new Runnable() {
                     @Override
                     public void run() {
+                        //关闭WiFi
+                        mWifiAdmin.closeWifi();
 
                         if (!mAPHelper.isApEnabled()) {
                             //打开热点
                             if (mAPHelper.setWifiApEnabled(APHelper.createWifiCfg(), true)) {
                                 //成功
+                                //打开监听端口
+                                if (!OpenSocketServerPort) {
+                                    mTCPServer.StartServer();
+                                    OpenSocketServerPort = true;
+                                }
+
                                 Message APOpenSuccess = new Message();
                                 APOpenSuccess.what = MsgValue.APOPENSUCCESS;
                                 handler.sendMessage(APOpenSuccess);
@@ -208,8 +218,12 @@ public class MainActivity extends AppCompatActivity
                         } else {
                             //
                         }
+
+                        // String s= LocalInfor.getHostIP();
                     }
                 }).start();
+
+
             }
         });
         bt_joinConnect = (Button) findViewById(R.id.button_joinConnect);
@@ -217,23 +231,8 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void onClick(View view) {
 
-
-
-                server_client = "isClient";
-                // 如果热点已经打开，需要先关闭热点
-                if (mAPHelper.isApEnabled()) {
-                    mAPHelper.setWifiApEnabled(null, false);
-
-                    mTCPServer.CloseServer();
-                    //当手机当做热点时，自身IP地址为192.168.43.1
-                    //GetIpAddress();
-                    Toast.makeText(MainActivity.this, "热点关闭", Toast.LENGTH_SHORT).show();
-                }
-
-                //开始水波纹
-                startWav(server_client);
-                //连接WiFi
-                connectWifi();
+                //连接WiFi    所有操作封装到一起
+                search_connect_wifi();
 
             }
         });
@@ -264,6 +263,11 @@ public class MainActivity extends AppCompatActivity
             }
         });
 
+
+        //刚开始就处于搜索状态
+        //连接WiFi    所有操作封装到一起
+        search_connect_wifi();
+
     }
 
     /**
@@ -278,39 +282,47 @@ public class MainActivity extends AppCompatActivity
         if (requestCode == FILE_CODE && resultCode == Activity.RESULT_OK) {
             // Use the provided utility method to parse the result
             List<Uri> files = Utils.getSelectedFilesFromResult(data);
+
+            ArrayList<File> fileList = new ArrayList<File>();
+            //使用循环把文件放入list
+            for (Uri uri : files) {
+                File file = Utils.getFileForUri(uri);
+                fileList.add(file);
+            }
+
+
+            //用来更改文件选择器的开始地址
             for (Uri uri : files) {
                 File file = Utils.getFileForUri(uri);
                 String s = file.getParent();
                 //如果有改变则写入新的
-                if(!s.equals(startPath)){
+                if (!s.equals(startPath)) {
                     MyFileUtils.writeToFile(myFolderPath, "fpStartPath.txt", s.getBytes());
                 }
-                startPath=s;
+                startPath = s;
                 //结束循环
                 break;
                 // Do something with the result...
             }
 
-//            for (Uri uri : files) {
-//                File file = Utils.getFileForUri(uri);
-//                String fileName = file.getName();
-//                Toast.makeText(this, fileName, Toast.LENGTH_SHORT).show();
-//                // Do something with the result...
-//            }
-
-            sendFiles(files);
+            sendFiles(fileList);
         }
 
     }
 
-    public void sendFiles(final List<Uri> files) {
+    /**
+     * 发送文件
+     *
+     * @param fileList
+     */
+    public void sendFiles(final ArrayList<File> fileList) {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                if (server_client.equals("isServer")) {
-                    mTCPServer.SendFile(files);
-                } else if (server_client.equals("isClient")) {
-                    mTcpClient.sendFile(files);
+                if (server_client.equals(Constant.isServer)) {
+                    mTCPServer.SendFile(fileList);
+                } else if (server_client.equals(Constant.isClient)) {
+                    mTcpClient.sendFile(fileList);
                 } else {
                     return;
                 }
@@ -319,25 +331,65 @@ public class MainActivity extends AppCompatActivity
         }).start();
     }
 
-    //连接热点
-    public void connectWifi() {
+    //连接ServerSocket
+    public void search_connect_wifi() {
+        //若是已经是服务端，则告知客户端已关闭
+        if (server_client.equals(Constant.isServer) && mTCPServer.getServerSocketState()) {
+            //断开
+            mTCPServer.CloseServer();
+        }
+        server_client = Constant.isClient;
+        //开始水波纹
+        startWav(server_client);
+
+        //清空
+        myClientProgressList.clear();
+
         new Thread(new Runnable() {
             @Override
             public void run() {
-                //连接指定wifi
-                mWifiAdmin.openWifi();
-                mWifiAdmin.connectAppointedNet();
+                //如果已作为client连接到了socket  则先断开
 
+                // 如果热点已经打开，需要先关闭热点
+                if (mAPHelper.isApEnabled()) {
+                    mAPHelper.setWifiApEnabled(null, false);
+                    //关闭监听端口
+                    mTCPServer.CloseServer();
+                    //当手机当做热点时，自身IP地址为192.168.43.1
+                    //GetIpAddress();
+                    // Toast.makeText(MainActivity.this, "热点关闭", Toast.LENGTH_SHORT).show();
+                }
+
+
+                mWifiAdmin.openWifi();
+                String bssid = mWifiAdmin.searchWifi(Constant.HOST_SPOT_SSID);
+                if (!bssid.equals("")) {
+                    //如果WiFi已经连接上别的WiFi   则先断开
+//                    if(mWifiAdmin.isWifiConnected()&&(!mWifiAdmin.getBSSID().equals(bssid))){
+//                        int netId=mWifiAdmin.getNetworkId();
+//                        mWifiAdmin.disconnectWifi(netId);
+//                    }
+                    //连接到指定网络
+                    mWifiAdmin.addNetwork(mWifiAdmin.CreateWifiInfo(bssid, Constant.HOST_SPOT_SSID, Constant.HOST_SPOT_PASS_WORD, 3));
+                } else {
+                    //说明没找到指定wifi
+                    return;
+                }
+                while (!mWifiAdmin.isWifiConnected()) {
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    //连接到指定网络
+                    // mWifiAdmin.addNetwork(mWifiAdmin.CreateWifiInfo(bssid,Constant.HOST_SPOT_SSID, Constant.HOST_SPOT_PASS_WORD, 3));
+                }
                 //连接Server Socket
                 mTcpClient.connectServer();
-
 
             }
         }).start();
     }
-
-
-
 
 
     /**
@@ -355,6 +407,7 @@ public class MainActivity extends AppCompatActivity
                     Toast.makeText(MainActivity.this, "打开热点失败", Toast.LENGTH_SHORT).show();
                     break;
 
+
                 //处理 TCPClient的信息
                 case MsgValue.CONNECT_SF:
                     //连接成功或失败
@@ -368,17 +421,17 @@ public class MainActivity extends AppCompatActivity
                 case MsgValue.SET_SERVER_CIRPRO:
                     //显示server的圆形进度球
                     String serverPhoneName = msg.obj.toString();
-                    addCirclePro(cirPro_server,tv_serverPhoneName,serverPhoneName);
+                    addCirclePro(cirPro_server, tv_serverPhoneName, serverPhoneName);
                     break;
                 case MsgValue.SET_REV_PROGRESS:
                     //显示接收进度
-                    int progress=msg.arg1;   //进度
+                    int progress = msg.arg1;   //进度
                     //String phoneName=msg.obj.toString();
                     cirPro_client.setProgress(progress);
                     break;
                 case MsgValue.SET_SEND_PROGRESS:
                     //显示发送进度
-                    int send_progress=msg.arg1;   //进度
+                    int send_progress = msg.arg1;   //进度
                     //String phoneName=msg.obj.toString();
                     cirPro_server.setProgress(send_progress);
                     break;
@@ -390,46 +443,67 @@ public class MainActivity extends AppCompatActivity
                 case MsgValue.C_REV_ERROR_FILELEN:
                     Toast.makeText(MainActivity.this, msg.obj.toString(), Toast.LENGTH_SHORT).show();
                     break;
+                case MsgValue.C_SOCKET_END_FLAG:
+                    //关闭服务端的进度球
+                    deleteCirPro(cirPro_server, tv_serverPhoneName);
+                    //重新搜索wifi
+                    search_connect_wifi();
+                    break;
 
 
                 //处理TCPServer信息
                 case MsgValue.CP_NAME:
-                    String cp_name = msg.obj.toString();
-                    Toast.makeText(MainActivity.this, msg.obj.toString() + "已连接", Toast.LENGTH_SHORT).show();
+                    //处理连接来的手机名信息,并设置进度球
+                    String cp_name_ip = msg.obj.toString();
+                    String cp_name = "";
+                    String cp_ip = "";
+                    String[] split = cp_name_ip.split("#");
+                    int flag = 1;
+                    for (String val : split) {
+                        if (flag == 1) {
+                            cp_name = val;
+                            ++flag;
+                        } else if (flag == 2) {
+                            cp_ip = val;
+                            ++flag;
+                        }
+                    }
+                    //设置进度球
+                    setClientProgress(cp_name, cp_ip);
+
+                    //向连接上的客户端发送FileRev中的所有文件
+                    final String _cp_ip = cp_ip;
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            mTCPServer.SendFile(_cp_ip, myFileRevPath);
+                        }
+                    }).start();
+
+                    Toast.makeText(MainActivity.this, cp_name + "已连接", Toast.LENGTH_SHORT).show();
                     break;
                 case MsgValue.SFOPEN_LISTENER:
                     //开启监听端口成功或失败
                     Toast.makeText(MainActivity.this, msg.obj.toString(), Toast.LENGTH_SHORT).show();
                     break;
-                case MsgValue.S_SET_CLIENT_CIRPRO:
-                    int clientNum=msg.arg1;
-                    String client_phoneName=msg.obj.toString();
-                    addCirclePro(circleProgress1,tv_phoneName1,client_phoneName);
-//                    if(clientNum==1){
-//                        addCirclePro(circleProgress1,tv_phoneName1,client_phoneName);
-//                    } else if (clientNum == 2) {
-//                        addCirclePro(circleProgress2,tv_phoneName2,client_phoneName);
-//                    }else if (clientNum == 3) {
-//                        addCirclePro(circleProgress3,tv_phoneName3,client_phoneName);
-//                    }else if(clientNum==4){
-//                        addCirclePro(circleProgress4,tv_phoneName4,client_phoneName);
-//                    }else{
-//                        //只支持显示4个client
-//                    }
-                    break;
+
                 case MsgValue.S_SET_REV_PROGRESS:
                     //设置接收进度
-                    int s_progress=msg.arg1;   //进度
+                    int s_progress = msg.arg1;   //进度
+
                     //String s_phoneName=msg.obj.toString();
                     //本机的进度显示处   0
                     circleProgress0.setProgress(s_progress);
                     break;
                 case MsgValue.S_SET_SENT_PROGRESS:
                     //显示发送进度
-                    int s_send_progress=msg.arg1;   //进度
+                    int s_send_progress = msg.arg1;   //进度
+                    String s_c_ip = msg.obj.toString();
                     //int clientNo=msg.arg2;  //是第几个用户
                     //String s_phoneName=msg.obj.toString();
-                    circleProgress1.setProgress(s_send_progress);
+                    //设置该client的IP
+                    setMyClientProgressNum(s_c_ip, s_send_progress);
+                    // circleProgress1.setProgress(s_send_progress);
                     break;
                 case MsgValue.S_REVFINISH:
                     //接收成功
@@ -438,6 +512,10 @@ public class MainActivity extends AppCompatActivity
                     break;
                 case MsgValue.S_REV_ERROR_FILELEN:
                     Toast.makeText(MainActivity.this, msg.obj.toString(), Toast.LENGTH_SHORT).show();
+                    break;
+                case MsgValue.S_SOCET_END_FLAG:
+                    String socket_ip = msg.obj.toString();
+                    clearClientProgress(socket_ip);
                     break;
 
                 default:
@@ -470,6 +548,24 @@ public class MainActivity extends AppCompatActivity
                 mExitTime = System.currentTimeMillis();
 
             } else {
+
+                if (server_client.equals(Constant.isClient) && mTcpClient.getSocket_flag()) {
+                    //若已经是客户端，则告知服务端已关闭
+                    mTcpClient.disconnectServer();
+                } else if (server_client.equals(Constant.isServer) && mTCPServer.getServerSocketState()) {
+                    //若已经是服务端，则告知客户端已关闭
+                    mTCPServer.CloseServer();
+                }
+
+                // 如果热点已经打开，需要先关闭热点
+                if (mAPHelper.isApEnabled()) {
+                    mAPHelper.setWifiApEnabled(null, false);
+                    //发送关闭信息，并关闭监听端口
+                    mTCPServer.CloseServer();
+                    mTCPServer.stopListening();
+                }
+
+
                 //将文件选择器的开始目录写入文件
                 MyFileUtils.writeToFile(myFolderPath, "fpStartPath.txt", startPath.getBytes());
                 //执行退出操作,并释放资源
@@ -591,7 +687,6 @@ public class MainActivity extends AppCompatActivity
 //        ripple_server.setLayoutParams(parms);
 
 
-
         //本手机
         circleProgress0 = (CircleProgress) findViewById(R.id.circle_progress0);
         tv_phoneName0 = (TextView) findViewById(R.id.tv_phone_name0);
@@ -609,9 +704,23 @@ public class MainActivity extends AppCompatActivity
         circleProgress4 = (CircleProgress) findViewById(R.id.circle_progress4);
         tv_phoneName4 = (TextView) findViewById(R.id.tv_phone_name4);
 
+        //把圆形进度对象添加至list   注意circleProgress与textView是配合使用的
+        client_progress_list.add(circleProgress1);
+        client_progress_list.add(circleProgress2);
+        client_progress_list.add(circleProgress3);
+        client_progress_list.add(circleProgress4);
+
+        tv_client_phoneName_list.add(tv_phoneName1);
+        tv_client_phoneName_list.add(tv_phoneName2);
+        tv_client_phoneName_list.add(tv_phoneName3);
+        tv_client_phoneName_list.add(tv_phoneName4);
+
+
     }
+
     /**
      * 开始水波纹
+     *
      * @param type
      */
     public void startWav(String type) {
@@ -625,7 +734,7 @@ public class MainActivity extends AppCompatActivity
             tv_myPhoneName.setText(LocalInfor.getPhoneModel());
             //开始水波纹
             ripple_client.startRippleAnimation();
-        }else if(type.equals("isServer")){
+        } else if (type.equals("isServer")) {
             ripple_server.setVisibility(View.VISIBLE);
             circleProgress0.setVisibility(View.VISIBLE);
             tv_phoneName0.setVisibility(View.VISIBLE);
@@ -637,6 +746,7 @@ public class MainActivity extends AppCompatActivity
 
     /**
      * 结束水波纹
+     *
      * @param type
      */
     public void stopWav(String type) {
@@ -651,7 +761,7 @@ public class MainActivity extends AppCompatActivity
             cirPro_server.setVisibility(View.GONE);
             tv_serverPhoneName.setVisibility(View.GONE);
 
-        }else if(type.equals("isServer")){
+        } else if (type.equals("isServer")) {
             ripple_server.stopRippleAnimation();
 
             ripple_server.setVisibility(View.GONE);
@@ -669,32 +779,125 @@ public class MainActivity extends AppCompatActivity
 
             circleProgress4.setVisibility(View.GONE);
             tv_phoneName4.setVisibility(View.GONE);
-        }else{
+        } else {
 
         }
     }
 
     /**
      * 检查wav的状态
+     *
      * @return
      */
-    public String checkWavState(){
-        if(ripple_client.isRippleAnimationRunning()){
+    public String checkWavState() {
+        if (ripple_client.isRippleAnimationRunning()) {
             return "isClient";
-        }else if(ripple_server.isRippleAnimationRunning()){
+        } else if (ripple_server.isRippleAnimationRunning()) {
             return "isServer";
-        }else{
+        } else {
             return "";
         }
     }
 
+
+    /**
+     * 添加client的进度球
+     *
+     * @param cp_name
+     * @param ip
+     */
+    public void setClientProgress(String cp_name, String ip) {
+        CircleProgress circleProgress = null;
+        TextView tv_cp_name = null;
+        //现在myClientProgressList中查找
+        for (int k = 0; k < myClientProgressList.size(); ++k) {
+            if (myClientProgressList.get(k).getIp().equals(ip)) {
+                circleProgress = myClientProgressList.get(k).getCircleProgress();
+                tv_cp_name = myClientProgressList.get(k).getTextView();
+                addCirclePro(circleProgress, tv_cp_name, cp_name);
+                return;
+            }
+        }
+
+        int i = 0;
+        for (i = 0; i < client_progress_list.size(); ++i) {
+            if (client_progress_list.get(i).getVisibility() == View.GONE) {
+                circleProgress = client_progress_list.get(i);
+                tv_cp_name = tv_client_phoneName_list.get(i);
+                break;
+            }
+        }
+        if (i == client_progress_list.size()) {
+            //证明4个位置已经用完
+            Toast.makeText(this, "超过4个不可再显示CircleProgress", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        MyCircleProgress myCircleProgress = new MyCircleProgress();
+        myCircleProgress.setCircleProgress(circleProgress);
+        myCircleProgress.setTextView(tv_cp_name);
+        myCircleProgress.setIp(ip);
+        myCircleProgress.setPhoneName(cp_name);
+
+        myClientProgressList.add(myCircleProgress);
+
+
+        addCirclePro(circleProgress, tv_cp_name, cp_name);
+
+
+    }
+
+    public void setMyClientProgressNum(String ip, int progress) {
+        //在list中查找
+        for (int k = 0; k < myClientProgressList.size(); ++k) {
+            if (myClientProgressList.get(k).getIp().equals(ip)) {
+                CircleProgress circleProgress = myClientProgressList.get(k).getCircleProgress();
+                circleProgress.setProgress(progress);
+                return;
+            }
+        }
+    }
+
+    /**
+     * 删除指定IP的进度球
+     *
+     * @param ip
+     */
+    public void clearClientProgress(String ip) {
+        MyCircleProgress myCircleProgress = null;
+        CircleProgress circleProgress = null;
+        TextView textView = null;
+        int i = 0;
+        for (i = 0; i < myClientProgressList.size(); ++i) {
+            if (myClientProgressList.get(i).getIp().equals(ip)) {
+                myCircleProgress = myClientProgressList.get(i);
+                break;
+            }
+        }
+
+//        if (i == myClientProgressList.size()) {
+//            //没找到进度球
+//            return;
+//        }
+        if (myCircleProgress != null) {
+            circleProgress = myCircleProgress.getCircleProgress();
+            textView = myCircleProgress.getTextView();
+
+            //删除
+            deleteCirPro(circleProgress, textView);
+            //从列表删除
+            myClientProgressList.remove(myCircleProgress);
+        }
+
+    }
+
     /**
      * 添加圆形进度控件
+     *
      * @param circleProgress
      * @param tv
      * @param phoneName
      */
-    public void addCirclePro(CircleProgress circleProgress,TextView tv,String phoneName){
+    public void addCirclePro(CircleProgress circleProgress, TextView tv, String phoneName) {
         circleProgress.setProgress(0);
         tv.setText(phoneName);
         circleProgress.setVisibility(View.VISIBLE);
@@ -703,14 +906,14 @@ public class MainActivity extends AppCompatActivity
 
     /**
      * 删除指定的圆形进度控件
+     *
      * @param circleProgress
      * @param tv
      */
-    public void deleteCirPro(CircleProgress circleProgress,TextView tv){
+    public void deleteCirPro(CircleProgress circleProgress, TextView tv) {
         circleProgress.setVisibility(View.GONE);
         tv.setVisibility(View.GONE);
     }
-
 
 
     //检查和申请权限

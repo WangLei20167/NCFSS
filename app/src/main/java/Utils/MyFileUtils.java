@@ -6,6 +6,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 
 /**
@@ -179,5 +180,47 @@ public class MyFileUtils {
             }
         }
         return files;
+    }
+
+
+    /**
+     * 把文件复制进指定的路径
+     * @param file_source
+     * @param targetPath
+     */
+    public static void copyFile(File file_source,String targetPath){
+        String fileName=file_source.getName();
+
+        File file_target = new File(targetPath+File.separator+fileName);
+        if (!file_target.exists()) {   //不存在则创建
+            try {
+                file_target.createNewFile();
+            } catch (IOException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        }
+        InputStream fis = null;
+        OutputStream fos = null;
+        try {
+            fis = new FileInputStream(file_source);
+            fos = new FileOutputStream(file_target);
+            byte[] buf = new byte[4096];
+            int i;
+            while ((i = fis.read(buf)) != -1) {
+                fos.write(buf, 0, i);
+            }
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                fis.close();
+                fos.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
     }
 }

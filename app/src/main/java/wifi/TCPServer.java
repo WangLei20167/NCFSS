@@ -1,12 +1,8 @@
 package wifi;
 
 import android.content.Context;
-import android.net.Uri;
 import android.os.Handler;
 import android.os.Message;
-import android.widget.Toast;
-
-import com.nononsenseapps.filepicker.Utils;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -18,13 +14,11 @@ import java.io.InputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import msg.MsgValue;
-import utils.IntAndBytes;
 import utils.LocalInfor;
 import utils.MyFileUtils;
 
@@ -40,12 +34,19 @@ public class TCPServer {
     private ExecutorService mExecutorService = null;   //线程池
     private volatile boolean flag_thread = true; //线程标志位
     private Context context;
+
+    //获取服务端口状态
+    public boolean getServerSocketState() {
+        return serverSocketState;
+    }
+
     private boolean serverSocketState = false;  //判断监听端口是否开启
     ServerThread serverThread = new ServerThread();
 
     //作为接收的缓存目录
     private String TempPath;
     private String FileRevPath;
+
 
     private Handler handler = null;
 
@@ -62,32 +63,54 @@ public class TCPServer {
         serverThread.start();
     }
 
-    //关闭socket服务
+    //此处只是把socket中的client全都清除，不关闭ServerSocket监听端口
     public void CloseServer() {
         if (!serverSocketState) {
             //如果监听端口本就没开启，则返回
             return;
         }
         try {
-            flag_thread = false;
-            server.close();
-            serverSocketState = false;
+//            flag_thread = false;
+//            server.close();
+//            serverSocketState = false;
             for (int p = 0; p < mList.size(); p++) {
                 Socket s = mList.get(p);
+                //关闭前向客户端发送信息
+                DataInputStream in = new DataInputStream(s.getInputStream());     //接收
+                DataOutputStream out = new DataOutputStream(s.getOutputStream());//发送
+                String str_flag= Constant.END_FLAG+"#"+0+"#"+0+"#";
+                out.write(str_flag.getBytes());
+                //关闭
+                in.close();
+                out.close();
                 s.close();
             }
+            mList.clear();
             mExecutorService.shutdownNow();
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
+    //关闭监听端口
+    public void stopListening(){
+        //关闭监听端口
+        try {
+            flag_thread = false;
+            server.close();
+            serverSocketState = false;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
     /**
      * 发送文件
      *
-     * @param files 文件列表
+     * @param fileList 文件列表
      */
-    public void SendFile(List<Uri> files) {
+    public void SendFile(ArrayList<File> fileList) {
         //按文件
         //先发送文件名和文件长度
         //向所有已连接节点发送数据
@@ -169,26 +192,39 @@ public class TCPServer {
 
         //发送给client
 
+        int total_file_len=0;
+
+        for(File file:fileList){
+           // File file = Utils.getFileForUri(uri0);
+//            if(file.length()>Integer.MAX_VALUE){
+//                //文件过长
+//                file.getName();
+//            }
+            total_file_len+=file.length();
+        }
+
         //按socket
         for (int p = 0; p < mList.size(); p++) {
             Socket s = mList.get(p);
-
+            String ip=s.getInetAddress().toString();
+            int already_send_len=0;    //用以记录已经发送的字节数
             DataOutputStream out = null;
             InputStream input = null;
-            for (Uri uri : files) {
-                File file = Utils.getFileForUri(uri);
+            for (File file:fileList) {
+               // File file = Utils.getFileForUri(uri);
                 try {
+                    //设置非延迟发送
                     s.setTcpNoDelay(true);
                     out = new DataOutputStream(s.getOutputStream());//发送
-                    String fileName_Len = file.getName() + "#" + file.length() + "#";
-                    long fileLen = file.length();
+                    String fileName_Len_totalLen = file.getName() + "#" + file.length() + "#"+total_file_len+"#";
+                    //long fileLen = file.length();
 //                    if (fileLen > Integer.MAX_VALUE) {
 //                        //文件过大 超4G
 //                        //break;
 //                    }
                     //写入文件名字和长度
                     byte[] send_len_name = new byte[255];
-                    byte[] len_name = fileName_Len.getBytes();
+                    byte[] len_name = fileName_Len_totalLen.getBytes();
                     int len_name_len = len_name.length;
                     for (int i = 0; i < len_name_len; i++) {
                         send_len_name[i] = len_name[i];
@@ -217,14 +253,13 @@ public class TCPServer {
                     //读取文件内容发送
                     input = new FileInputStream(file);
                     byte[] data = new byte[1024];
-                    int len;
-                    int already_send_data=0;
+                    int len=-1;
+                    //int already_send_data=0;
                     while ((len = input.read(data)) != -1) {
-                       // out.write(data, 0, len);
                         out.write(data, 0, len);
-                        already_send_data+=len;
-                        SendMessage(MsgValue.S_SET_SENT_PROGRESS,(int)((already_send_data/(float)fileLen)*100),p+1,"");//p+1的意思是这是第几个client
-                        //Arrays.fill(data,(byte)0);
+                        already_send_len+=len;
+                        //already_send_data+=len;
+                        SendMessage(MsgValue.S_SET_SENT_PROGRESS,(int)((already_send_len/(float)total_file_len)*100),p+1,ip);//p+1的意思是这是第几个client
                     }
                     //关闭输入输出流
                     //out.close();//若是关系，无法再次接收
@@ -247,10 +282,108 @@ public class TCPServer {
 
     }
 
-    //释放资源
-    protected void destroy() {
+    /**
+     * 把指定目录所有文件发送到指定IP
+     * @param ip
+     * @param path
+     */
+    public void SendFile(String ip,String path){
+        ArrayList<File> fileList=null;
+        fileList= MyFileUtils.getListFiles(path);
+        int total_file_len=0;
+
+        for(File file:fileList){
+            // File file = Utils.getFileForUri(uri0);
+//            if(file.length()>Integer.MAX_VALUE){
+//                //文件过长
+//                file.getName();
+//            }
+            total_file_len+=file.length();
+        }
+
+        //按socket
+        for (int p = 0; p < mList.size(); p++) {
+            Socket s = mList.get(p);
+            String _ip=s.getInetAddress().toString();
+            if(!_ip.equals(ip)){
+                continue;
+            }
+            int already_send_len=0;   //记录已经发送的字节数
+            DataOutputStream out = null;
+            InputStream input = null;
+            for (File file:fileList) {
+                // File file = Utils.getFileForUri(uri);
+                try {
+                    //设置非延迟发送
+                    s.setTcpNoDelay(true);
+                    out = new DataOutputStream(s.getOutputStream());//发送
+                    String fileName_Len_totalLen = file.getName() + "#" + file.length() + "#"+total_file_len+"#";
+                    //long fileLen = file.length();
+//                    if (fileLen > Integer.MAX_VALUE) {
+//                        //文件过大 超4G
+//                        //break;
+//                    }
+                    //写入文件名字和长度
+                    byte[] send_len_name = new byte[255];
+                    byte[] len_name = fileName_Len_totalLen.getBytes();
+                    int len_name_len = len_name.length;
+                    for (int i = 0; i < len_name_len; i++) {
+                        send_len_name[i] = len_name[i];
+                    }
+                    //Arrays.fill(send_len_name,(byte)0);
+//                    byte[] bt_len= IntAndBytes.int2byte((int)file.length());
+//                    for(int i=0;i<4;i++){
+//                        send_len_name[i]=bt_len[i];
+//                    }
+//                    byte[] bt_name=file.getName().getBytes();
+//                    byte name_len=(byte)bt_name.length;
+//                    send_len_name[4]=name_len;
+//                    for(int i=5;i<5+name_len;i++){
+//                        send_len_name[i]=bt_name[i-5];
+//                    }
+
+
+                    out.write(send_len_name);
+
+                    //暂停40ms用来防止小包 粘包
+//                    try {
+//                        Thread.sleep(40);
+//                    } catch (InterruptedException e) {
+//                        e.printStackTrace();
+//                    }
+                    //读取文件内容发送
+                    input = new FileInputStream(file);
+                    byte[] data = new byte[1024];
+                    int len=-1;
+                    //int already_send_data=0;
+                    while ((len = input.read(data)) != -1) {
+                        out.write(data, 0, len);
+                        already_send_len+=len;
+                        //already_send_data+=len;
+                        SendMessage(MsgValue.S_SET_SENT_PROGRESS,(int)((already_send_len/(float)total_file_len)*100),p+1,ip);//p+1的意思是这是第几个client
+                    }
+                    //关闭输入输出流
+                    //out.close();//若是关系，无法再次接收
+                    input.close();
+
+                    //暂停40ms用来防止小包 粘包
+                    //文件与文件之间让其暂停100ms   防止粘包
+//                    try {
+//                        Thread.sleep(100);
+//                    } catch (InterruptedException e) {
+//                        e.printStackTrace();
+//                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    //文件发送异常
+                }
+            }
+           // break;
+        }
 
     }
+
+
 
     //Server端的主线程
     class ServerThread extends Thread {
@@ -270,7 +403,7 @@ public class TCPServer {
         //开启监听端口，并通知哪个节点已经连接
         public void run() {
             try {
-                server = new ServerSocket(Constant.TCP_ServerPORT, 5);  //连接请求队列的长度，超过则拒绝
+                server = new ServerSocket(Constant.TCP_ServerPORT, 10);  //连接请求队列的长度，超过则拒绝
                 server.setReuseAddress(true);   //设置可重复绑定端口，指的是关闭后还没释放的那段时间
             } catch (IOException e1) {
                 // TODO Auto-generated catch block
@@ -321,8 +454,12 @@ public class TCPServer {
         private DataOutputStream out = null; //发送
         private String msg = "";
 
+        private boolean socket_flag=true;
+        private String socket_ip;
+
         public Service(Socket socket) {
             this.socket = socket;
+            socket_ip=socket.getInetAddress().toString();
             try {
                 socket.setTcpNoDelay(true); //设置直接发送
                 socket.setKeepAlive(true);   //检测服务器是否处于活动状态
@@ -337,7 +474,7 @@ public class TCPServer {
 //                handler.sendMessage(ClientOnLine);
                 //在此发送本机型号
                 byte[] send_phoneName=new byte[255];
-                String phoneName=LocalInfor.getPhoneModel()+"#";
+                String phoneName= LocalInfor.getPhoneModel()+"#";
                 byte[] bt_phoneName= phoneName.getBytes();
                 int len=bt_phoneName.length;
                 for(int i=0;i<len;i++){
@@ -362,10 +499,13 @@ public class TCPServer {
                     byte[] getBytes = new byte[255];
                     //待接收的文件长度和数目
                     String phoneName="";  //得到对方手机名
-                    int fileLen = 0;
-                    int fileNum = 0;
-                    int restFileNum = 0;
+
+                    //int fileNum = 0;
+                    //int restFileNum = 0;
                     String fileName = "";
+                    int fileLen = 0;
+                    int total_file_len=0;
+                    int already_rev_len=0;
                     // int fileNameCount=1;
                     //String tempFilePath="";
                     boolean getCPInfor=true;    //得到socketSever的手机信息
@@ -373,7 +513,7 @@ public class TCPServer {
                     //限制读取字节数，防止接收端出现的粘包现象
                     int limit_readNum=getBytes.length;
                     boolean isFirstMsg = true;
-                    while (true) {
+                    while (socket_flag) {
                         if (socket.isConnected()) {
                             if (!socket.isInputShutdown()) {
                                 try {
@@ -393,10 +533,10 @@ public class TCPServer {
                                                     ++flag;
                                                 }
                                             }
+                                            String phoneName_ip=phoneName+"#"+socket_ip;
 
-                                            SendMessage(MsgValue.CP_NAME, 0, 0, phoneName);
-                                            //设置进度球
-                                            SendMessage(MsgValue.S_SET_CLIENT_CIRPRO,mList.size(),0,phoneName);  //arg1位置存的是client的个数
+                                            SendMessage(MsgValue.CP_NAME, 0, 0, phoneName_ip);
+
                                             //结束这次循环
                                             continue;
                                         }
@@ -428,11 +568,27 @@ public class TCPServer {
                                                         SendMessage(MsgValue.S_REV_ERROR_FILELEN, 0, 0, "接收文件长度失败");
                                                     }
                                                     ++flag;
+
+                                                }else if(flag==3){
+                                                    try {
+                                                        total_file_len=Integer.parseInt(val);
+                                                    } catch (NumberFormatException e) {
+                                                        e.printStackTrace();
+                                                        //接收文件总长度失败   不是数字转化为int出错
+                                                        SendMessage(MsgValue.S_REV_ERROR_FILELEN, 0, 0, "接收文件总长度失败");
+                                                    }
+                                                    ++flag;
                                                     //跳出循环
                                                     break;
-                                                }else{
-
                                                 }
+                                            }
+                                            //处理结束标志
+                                            if(fileName.equals(Constant.END_FLAG)&&(fileLen==0)){
+                                                socket_flag=false;
+                                                //关掉圆形进度球
+                                                SendMessage(MsgValue.S_SOCET_END_FLAG,0,0,socket_ip);
+                                                closeSocket();
+                                                break;
                                             }
                                             if(fileLen<getBytes.length){
                                                 limit_readNum=fileLen;
@@ -449,8 +605,9 @@ public class TCPServer {
                                         while (readBytes < fileLen) {
                                             fos.write(getBytes, 0, readBytesNum);
                                             readBytes += readBytesNum;   //记录已经写入的文件个数
+                                            already_rev_len+= readBytesNum;  //记录已经接收的字节数
                                             //设置接收进度
-                                            SendMessage(MsgValue.S_SET_REV_PROGRESS,(int)((readBytes/(float)fileLen)*100),0,phoneName);
+                                            SendMessage(MsgValue.S_SET_REV_PROGRESS,(int)((already_rev_len/(float)total_file_len)*100),0,phoneName);
                                             if (readBytes < fileLen) {
                                                 int rest_len=fileLen-readBytes;
                                                 //防止多读取字节
@@ -463,22 +620,16 @@ public class TCPServer {
                                             }
                                         }
 
-//                                        do{
-//                                            fos.write(getBytes, 0, readBytesNum);
-//                                            readBytes += readBytesNum;   //记录已经写入的文件个数
-//                                            //设置接收进度
-//                                            SendMessage(MsgValue.S_SET_REV_PROGRESS,(int)((readBytes/(float)fileLen)*100),0,phoneName);
-//                                        }while((readBytesNum  = in.read(getBytes))!= -1&&(readBytes < fileLen));
-
 
                                         fos.close();
+                                        //用于下次接收
                                         isFirstMsg = true;
-
-                                        //重新定义缓存流
-
-                                        //in.reset();
-                                        in = new DataInputStream(socket.getInputStream());     //接收
                                         limit_readNum=getBytes.length;
+                                        //代表所有文件已经接收完毕
+                                        if(already_rev_len==total_file_len){
+                                            already_rev_len=0;
+                                            total_file_len=0;
+                                        }
 
                                         //文件接收完毕
                                         SendMessage(MsgValue.S_REVFINISH, 0, 0, "接收" + fileName + "成功");
@@ -518,6 +669,18 @@ public class TCPServer {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }
+
+        //处理一个client的退出
+        public void closeSocket(){
+            try {
+                out.close();
+                in.close();
+                socket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            mList.remove(socket);
         }
     }
 
