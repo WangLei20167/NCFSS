@@ -35,7 +35,6 @@ import com.skyfishjy.library.RippleBackground;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -44,6 +43,7 @@ import java.util.List;
 import msg.MsgValue;
 import utils.LocalInfor;
 import utils.MyFileUtils;
+import utils.SettingDialog;
 import wifi.APHelper;
 import wifi.Constant;
 import wifi.MyCircleProgress;
@@ -130,6 +130,12 @@ public class MainActivity extends AppCompatActivity
     private List<MyCircleProgress> myClientProgressList = new ArrayList<MyCircleProgress>();
     private List<CircleProgress> client_progress_list = new ArrayList<CircleProgress>();
     private List<TextView> tv_client_phoneName_list = new ArrayList<TextView>();
+
+
+    //用于网络编码的变量，设置一个初值
+    private int N=4;
+    private int K=4;
+    private int SFN=1;  //send file num
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -337,8 +343,8 @@ public class MainActivity extends AppCompatActivity
      * @param file
      */
     public String encode_file(File file) {
-        int N = 4;
-        int K = 4;
+       // int N = 4;
+       // int K = 4;
         int fileLen = (int) (file.length());
         int perLen = fileLen / K + (fileLen % K != 0 ? 1 : 0);   //处理不可整除时的情况
         int len = perLen * K;
@@ -366,7 +372,7 @@ public class MainActivity extends AppCompatActivity
         String encode_file_path = MyFileUtils.creatFolder(myTempPath, _filename_folder);
         for (int i = 0; i < N; ++i) {
             // String encode_file_name = (i+1)+"en_" + LocalInfor.getCurrentTime("MMddHHmmss") + "_" + fileName + ".nc";
-            String encode_file_name = "0_" + (i + 1) + "_re_" + fileName + ".nc";   //0代表再编码的次数
+            String encode_file_name = "0_" + (i + 1) +"_"+ LocalInfor.getCurrentTime("HHmmss") + "_re_" + fileName + ".nc";   //0代表再编码的次数
             MyFileUtils.writeToFile(encode_file_path, encode_file_name, encodeData[i]);
         }
         return encode_file_path;
@@ -438,28 +444,28 @@ public class MainActivity extends AppCompatActivity
             //没有文件
             return null;
         }
-        int K = 0;
+        int nK = 0;
         try {
-            //从文件读取K值，在第一个字节
+            //从文件读取nK值，在第一个字节
             FileInputStream stream = new FileInputStream(files.get(0));
             byte[] b = new byte[1];
             stream.read(b);
-            K = (int) b[0];
+            nK = (int) b[0];
             stream.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-        if (fileNum < K) {
+        if (fileNum < nK) {
             //用于解码的文件数目不够
             return null;
         }
 
         int fileLen = (int) (files.get(0).length());  //注意：用于再编码的文件长度必定都是一样的
         //用于存文件数组
-        byte[][] fileData = new byte[K][fileLen];   //如果文件很多，也只需K个文件
+        byte[][] fileData = new byte[nK][fileLen];   //如果文件很多，也只需nK个文件
 
-        for (int i = 0; i < K; ++i) {
+        for (int i = 0; i < nK; ++i) {
             File file = files.get(i);
             try {
                 InputStream in = new FileInputStream(file);
@@ -475,14 +481,14 @@ public class MainActivity extends AppCompatActivity
         }
 
         //存再编码结果
-        int col = fileLen - 1 - K;
-        byte[][] origin_data = new byte[K][col];
-        origin_data = Decode(fileData, K, fileLen);
+        int col = fileLen - 1 - nK;
+        byte[][] origin_data = new byte[nK][col];
+        origin_data = Decode(fileData, nK, fileLen);
         //二维转化为一维
-        int origin_file_len = K * col;
+        int origin_file_len = nK * col;
         byte[] originData = new byte[origin_file_len];
         int ii = 0;
-        for (int i = 0; i < K; ++i) {
+        for (int i = 0; i < nK; ++i) {
             for (int j = 0; j < col; ++j) {
                 originData[ii] = origin_data[i][j];
                 ++ii;
@@ -783,6 +789,9 @@ public class MainActivity extends AppCompatActivity
 
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_settings) {
+            showSettingDialog();
+            return true;
+        }else if(id==R.id.action_description){
             return true;
         }
 
@@ -805,7 +814,7 @@ public class MainActivity extends AppCompatActivity
                 //String path="/storage/emulated/0/DCIM";
                 Intent intent = new Intent(MainActivity.this, FilesListViewActivity.class);
                 //intent.putExtra("data_path",path);
-                intent.putExtra("data_path", myFileRevPath);
+                intent.putExtra("data_path", myTempPath);
                 startActivity(intent);
                 //FileUtils.openAssignFolder(MainActivity.this, myFolderPath);
                 break;
@@ -826,7 +835,7 @@ public class MainActivity extends AppCompatActivity
                 /**菜单中“软件描述”选项的弹出对话框*/
                 new AlertDialog.Builder(MainActivity.this)
                         .setTitle("软件描述")
-                        .setMessage("这是一个利用网络编码安全方案的文件共享项目。\n网址：https://github.com/WangLei20167/FileSharing")
+                        .setMessage("这是一个利用网络编码安全方案的文件共享项目。\n网址：https://github.com/WangLei20167/NCFSS")
                         .setPositiveButton("确定", null)
                         .show();
                 break;
@@ -845,6 +854,47 @@ public class MainActivity extends AppCompatActivity
         // DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         // drawer.closeDrawer(GravityCompat.START);
         return true;
+    }
+
+
+    // 设置弹窗
+
+    /**
+     * 获取设置弹窗中的值
+     */
+    private void showSettingDialog() {
+        final SettingDialog settingDialog = new SettingDialog(MainActivity.this);
+        settingDialog.initNum(N,K,SFN);
+        settingDialog.setOnPositiveListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                int n=settingDialog.getEt_N();
+                int k=settingDialog.getEt_K();
+                int sfn=settingDialog.getEt_SFN();
+                //dosomething youself
+                if(k>n){
+                    Toast.makeText(MainActivity.this, "K值不可大于N", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                if(sfn>k){
+                    Toast.makeText(MainActivity.this, "SFN值不可大于K", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                //赋值
+                N=n;
+                K=k;
+                SFN=sfn;
+
+                settingDialog.dismiss();
+            }
+        });
+        settingDialog.setOnNegativeListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                settingDialog.dismiss();
+            }
+        });
+        settingDialog.show();
     }
 
     /**
