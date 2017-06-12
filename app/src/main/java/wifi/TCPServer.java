@@ -212,7 +212,7 @@ public class TCPServer {
             DataOutputStream out = null;
             InputStream input = null;
             for (File file:fileList) {
-               // File file = Utils.getFileForUri(uri);
+                // File file = Utils.getFileForUri(uri);
                 try {
                     //设置非延迟发送
                     s.setTcpNoDelay(true);
@@ -230,18 +230,6 @@ public class TCPServer {
                     for (int i = 0; i < len_name_len; i++) {
                         send_len_name[i] = len_name[i];
                     }
-                    //Arrays.fill(send_len_name,(byte)0);
-//                    byte[] bt_len= IntAndBytes.int2byte((int)file.length());
-//                    for(int i=0;i<4;i++){
-//                        send_len_name[i]=bt_len[i];
-//                    }
-//                    byte[] bt_name=file.getName().getBytes();
-//                    byte name_len=(byte)bt_name.length;
-//                    send_len_name[4]=name_len;
-//                    for(int i=5;i<5+name_len;i++){
-//                        send_len_name[i]=bt_name[i-5];
-//                    }
-
 
                     out.write(send_len_name);
 
@@ -259,7 +247,6 @@ public class TCPServer {
                     while ((len = input.read(data)) != -1) {
                         out.write(data, 0, len);
                         already_send_len+=len;
-                        //already_send_data+=len;
                         SendMessage(MsgValue.S_SET_SENT_PROGRESS,(int)((already_send_len/(float)total_file_len)*100),p+1,ip);//p+1的意思是这是第几个client
                     }
                     //关闭输入输出流
