@@ -17,20 +17,14 @@ public class MyEncodeFile {
     private int fileNum = 0;    //指的是编码数据的个数
     private int needFileNum = 0;  //一共需要多少文件可以解码
 
-
     private int sendFlag = 0;   //记录该发送那几个文件  按顺序循环
-
 
     private String fileFolderName;
     private String filePath;
     private String encodeFilePath;   //记录的是编码文件夹路径
     private String sendFilePath;     //再编码后等待发送的文件
 
-
-
-
     private int recode_file_num = 0;   //用来记录用于发送的文件个数（再编码后的文件）
-
 
     private String fileName;
     private File fileName_txt;

@@ -615,6 +615,7 @@ public class MainActivity extends AppCompatActivity
 
     /**
      * 发送文件
+     *
      * @param fileList
      */
     public void sendFiles(final ArrayList<File> fileList) {
@@ -639,6 +640,9 @@ public class MainActivity extends AppCompatActivity
         if (server_client.equals(Constant.isServer) && mTCPServer.getServerSocketState()) {
             //断开
             mTCPServer.CloseServer();
+        }else if (server_client.equals(Constant.isClient) && mTcpClient.getSocket_flag()) {
+            //若已经是客户端，则告知服务端已关闭
+            mTcpClient.disconnectServer();
         }
         server_client = Constant.isClient;
         //开始水波纹
@@ -1040,7 +1044,7 @@ public class MainActivity extends AppCompatActivity
                 int k = settingDialog.getEt_K();
                 int sfn = settingDialog.getEt_SFN();
                 //dosomething youself
-                if (n>10) {
+                if (n > 10) {
                     Toast.makeText(MainActivity.this, "N值取值范围1-10", Toast.LENGTH_SHORT).show();
                     return;
                 }
@@ -1070,7 +1074,7 @@ public class MainActivity extends AppCompatActivity
     }
 
     /**
-     *选择文件弹窗
+     * 选择文件弹窗
      */
     private void showSelectFileDialog() {
         final SelectFileDialog selectFileDialog = new SelectFileDialog(MainActivity.this, myTempPath);
