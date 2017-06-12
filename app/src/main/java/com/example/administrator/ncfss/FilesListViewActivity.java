@@ -20,6 +20,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 
+import utils.LocalInfor;
 import utils.MyFileUtils;
 
 public class FilesListViewActivity extends AppCompatActivity {
@@ -131,9 +132,10 @@ public class FilesListViewActivity extends AppCompatActivity {
                 if(files.size()==0||files==null){
                     return true;
                 }
-                for(File file: files){
-                    file.delete();
-                }
+//                for(File file: files){
+//                    file.delete();
+//                }
+                MyFileUtils.deleteAllFile(dataPath);
                 showFileList();
                 Toast.makeText(this, "所有文件已删除", Toast.LENGTH_SHORT).show();
                 break;
@@ -163,6 +165,7 @@ public class FilesListViewActivity extends AppCompatActivity {
         }
         return type;
     }
+
     private static final String[][] MIME_MapTable = {
             // {后缀名，MIME类型}
             { ".3gp", "video/3gpp" },

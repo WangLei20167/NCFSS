@@ -16,13 +16,14 @@ import java.util.ArrayList;
 public class MyFileUtils {
     /**
      * 将byte流写入指定文件，文件若是不存在，先创建再写
-     * @param path   路径
-     * @param fileName 文件名
+     *
+     * @param path      路径
+     * @param fileName  文件名
      * @param inputData
      */
-    public static void writeToFile(String path, String fileName,byte[] inputData) {
+    public static void writeToFile(String path, String fileName, byte[] inputData) {
 
-        File myFile = new File(path+File.separator+fileName);
+        File myFile = new File(path + File.separator + fileName);
         FileOutputStream fos = null;
         BufferedOutputStream bos = null;
         if (!myFile.exists()) {   //不存在则创建
@@ -65,14 +66,15 @@ public class MyFileUtils {
 
     /**
      * 从路径文件中读取数据放入byte[]
+     *
      * @param path
      * @param fileName
      * @return byte[]
      */
-    public static byte[] readFile(String path,String fileName){
-        String path_fileName=path+File.separator+fileName;
-        File file=new File(path_fileName);
-        if(!file.exists()){
+    public static byte[] readFile(String path, String fileName) {
+        String path_fileName = path + File.separator + fileName;
+        File file = new File(path_fileName);
+        if (!file.exists()) {
             try {
                 file.createNewFile();
             } catch (IOException e) {
@@ -150,6 +152,7 @@ public class MyFileUtils {
             //若不存在，则创建
             tempFolder.mkdir();
         }
+
         return pathFolder;
     }
 
@@ -182,19 +185,92 @@ public class MyFileUtils {
     }
 
     /**
-     *
+     * 获取指定目录下文件夹,只找一级目录下
      */
+    public static ArrayList<File> getListFolders(Object obj) {
+        File directory = null;
+        if (obj instanceof File) {
+            directory = (File) obj;
+        } else {
+            directory = new File(obj.toString());
+        }
+        ArrayList<File> folderList = new ArrayList<File>();
+        if (directory.isDirectory()) {
+            File[] fileArr = directory.listFiles();
+            for (int i = 0; i < fileArr.length; ++i) {
+                File fileOne = fileArr[i];
+                if (fileOne.isDirectory()) {
+                    folderList.add(fileOne);
+                }
+            }
+        }
+        return folderList;
+    }
+
+    /**
+     * 获取一个目录下文件的数目，不包含文件夹，只查找一级目录
+     */
+    public static int getFileNum(Object obj) {
+        File directory = null;
+        if (obj instanceof File) {
+            directory = (File) obj;
+        } else {
+            directory = new File(obj.toString());
+        }
+        int fileNum = 0;
+        if (directory.isDirectory()) {
+            File[] fileArr = directory.listFiles();
+            for (int i = 0; i < fileArr.length; ++i) {
+                File fileOne = fileArr[i];
+                if (fileOne.isFile()) {
+                    ++fileNum;
+                }
+            }
+        }
+        return fileNum;
+    }
+
+    /**
+     * 删除指定目录下所有文件  注意：删除文件夹时，是先删除其中所有文件，再删除文件夹
+     * 不删除指定的路径
+     * @param obj
+     * @return
+     */
+    public static void deleteAllFile(Object obj) {
+        File directory = null;
+        if (obj instanceof File) {
+            directory = (File) obj;
+        } else {
+            directory = new File(obj.toString());
+        }
+        if (directory.isFile()) {
+            directory.delete();
+            return;
+        } else if (directory.isDirectory()) {
+            File[] fileArr = directory.listFiles();
+            for (int i = 0; i < fileArr.length; i++) {
+                File fileOne = fileArr[i];
+                if (fileOne.isDirectory()) {
+                    deleteAllFile(fileOne);
+                }
+                fileOne.delete();
+            }
+            //这句加上的话  指定路径也会被删除
+            //directory.delete();
+        }
+    }
 
 
     /**
      * 把文件复制进指定的路径
+     *
      * @param file_source
      * @param targetPath
      */
-    public static void copyFile(File file_source,String targetPath){
-        String fileName=file_source.getName();
+    public static void copyFile(File file_source, String targetPath) {
+        String fileName = file_source.getName();
 
-        File file_target = new File(targetPath+File.separator+fileName);
+        File file_target = new File(targetPath + File.separator + fileName);
         if (!file_target.exists()) {   //不存在则创建
             try {
                 file_target.createNewFile();
@@ -213,8 +289,7 @@ public class MyFileUtils {
             while ((i = fis.read(buf)) != -1) {
                 fos.write(buf, 0, i);
             }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             e.printStackTrace();
         } finally {
             try {

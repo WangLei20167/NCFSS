@@ -15,6 +15,8 @@ import java.net.Socket;
 import java.util.ArrayList;
 
 import msg.MsgValue;
+import nc.ConstantValue;
+import nc.MyEncodeFile;
 import utils.LocalInfor;
 import utils.MyFileUtils;
 
@@ -130,6 +132,9 @@ public class TCPClient {
                 //限制读取字节数，防止接收端出现的粘包现象
                 int limit_readNum=getBytes.length;
                 boolean isFirstMsg = true;
+                String folderName="";
+                String origin_file_name="";
+                String revPath="";
                 while (socket_flag) {
                     if (socket.isConnected()) {
                         if (!socket.isInputShutdown()) {
@@ -192,6 +197,19 @@ public class TCPClient {
                                                     SendMessage(MsgValue.C_REV_ERROR_FILELEN, 0, 0, "接收文件总长度失败");
                                                 }
                                                 ++flag;
+
+                                            }else if(flag==4){
+                                                folderName=val;
+                                                revPath=TempPath+File.separator+folderName+File.separator+ ConstantValue.ENCODE_FILE_FOLDER;
+                                                ++flag;
+
+                                            }else if(flag==5){
+                                                if(!val.equals("")){
+                                                    origin_file_name=val;
+
+                                                    SendMessage(MsgValue.C_CREATE_ENCODE_FILE_FOLDER, 0, 0, folderName+"#"+origin_file_name);
+                                                }
+                                                ++flag;
                                                 //跳出循环
                                                 break;
                                             }
@@ -215,7 +233,7 @@ public class TCPClient {
                                         continue;
                                     }
                                     //将socket中的内容写入文件
-                                    File file = MyFileUtils.creatFile(FileRevPath, fileName);
+                                    File file = MyFileUtils.creatFile(revPath, fileName);
                                     FileOutputStream fos = new FileOutputStream(file);
 //                                    fos.write(getBytes,0,fileLen);
                                     int readBytes = 0;   //已经读取的字节数
@@ -254,7 +272,7 @@ public class TCPClient {
                                         already_rev_len=0;
                                         total_file_len=0;
                                         //所有文件接收完毕
-                                        SendMessage(MsgValue.C_REV_ALL_FINISH, 0, 0, null);
+                                        SendMessage(MsgValue.C_REV_ALL_FINISH, 0, 0, folderName);
                                     }
 
 

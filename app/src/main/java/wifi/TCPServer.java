@@ -19,6 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import msg.MsgValue;
+import nc.MyEncodeFile;
 import utils.LocalInfor;
 import utils.MyFileUtils;
 
@@ -283,41 +284,69 @@ public class TCPServer {
     }
 
     /**
-     * 把指定目录所有文件发送到指定IP
-     * @param ip
-     * @param path
+     * 发送指定数目的文件到指定的IP
+     * @param ip  当ip为空时，发送给所有socket
+     * @param myEncodeFile
+     * @param sfn
      */
-    public void SendFile(String ip,String path){
-        ArrayList<File> fileList=null;
-        fileList= MyFileUtils.getListFiles(path);
+    public void SendFile(String ip, MyEncodeFile myEncodeFile,int sfn){
+
+        if(mList.size()==0){
+            //没用户返回
+            return;
+        }
+
+        String fileFolderName=myEncodeFile.getFileFolderName();
+        String path=myEncodeFile.getSendFilePath();
+        int sendFlag=myEncodeFile.getSendFlag();
+        int sendFileNum=myEncodeFile.getRecode_file_num();
+        String origin_file_name=myEncodeFile.getFileName();
+        //若是设置的SFN值大于已有文件数目
+        if(sfn>sendFileNum){
+            sfn=sendFileNum;
+        }
+
+        ArrayList<File> fileList= MyFileUtils.getListFiles(path);
         int total_file_len=0;
 
+        int sfn_flag=0;
         for(File file:fileList){
             // File file = Utils.getFileForUri(uri0);
 //            if(file.length()>Integer.MAX_VALUE){
 //                //文件过长
 //                file.getName();
 //            }
+            if(sfn_flag==sfn){
+                break;
+            }
             total_file_len+=file.length();
+            ++sfn_flag;
         }
 
         //按socket
         for (int p = 0; p < mList.size(); p++) {
             Socket s = mList.get(p);
             String _ip=s.getInetAddress().toString();
-            if(!_ip.equals(ip)){
-                continue;
+            if(ip.equals("")){
+
+            }else {
+                if (!_ip.equals(ip)) {
+                    continue;
+                }
             }
             int already_send_len=0;   //记录已经发送的字节数
             DataOutputStream out = null;
             InputStream input = null;
-            for (File file:fileList) {
+            for(int n=0;n<sfn;++n){
+                //发送数目
+                int sf=(sendFlag+n)%sendFileNum;
+                File file=fileList.get(sf);
                 // File file = Utils.getFileForUri(uri);
                 try {
                     //设置非延迟发送
                     s.setTcpNoDelay(true);
                     out = new DataOutputStream(s.getOutputStream());//发送
-                    String fileName_Len_totalLen = file.getName() + "#" + file.length() + "#"+total_file_len+"#";
+                    String fileName_Len_totalLen = file.getName() + "#" + file.length() + "#"+total_file_len+"#"+fileFolderName+"#"+origin_file_name+"#";
                     //long fileLen = file.length();
 //                    if (fileLen > Integer.MAX_VALUE) {
 //                        //文件过大 超4G
@@ -330,17 +359,6 @@ public class TCPServer {
                     for (int i = 0; i < len_name_len; i++) {
                         send_len_name[i] = len_name[i];
                     }
-                    //Arrays.fill(send_len_name,(byte)0);
-//                    byte[] bt_len= IntAndBytes.int2byte((int)file.length());
-//                    for(int i=0;i<4;i++){
-//                        send_len_name[i]=bt_len[i];
-//                    }
-//                    byte[] bt_name=file.getName().getBytes();
-//                    byte name_len=(byte)bt_name.length;
-//                    send_len_name[4]=name_len;
-//                    for(int i=5;i<5+name_len;i++){
-//                        send_len_name[i]=bt_name[i-5];
-//                    }
 
 
                     out.write(send_len_name);
@@ -360,24 +378,22 @@ public class TCPServer {
                         out.write(data, 0, len);
                         already_send_len+=len;
                         //already_send_data+=len;
-                        SendMessage(MsgValue.S_SET_SENT_PROGRESS,(int)((already_send_len/(float)total_file_len)*100),p+1,ip);//p+1的意思是这是第几个client
+                        SendMessage(MsgValue.S_SET_SENT_PROGRESS,(int)((already_send_len/(float)total_file_len)*100),p+1,_ip);//p+1的意思是这是第几个client
                     }
                     //关闭输入输出流
-                    //out.close();//若是关系，无法再次接收
+                    //out.close();//若是关闭，无法再次接收
                     input.close();
 
-                    //暂停40ms用来防止小包 粘包
-                    //文件与文件之间让其暂停100ms   防止粘包
-//                    try {
-//                        Thread.sleep(100);
-//                    } catch (InterruptedException e) {
-//                        e.printStackTrace();
-//                    }
                 } catch (IOException e) {
                     e.printStackTrace();
                     //文件发送异常
                 }
             }
+            //使连续两次发送的数据不一样
+            myEncodeFile.setSendFlag((sendFlag+sfn)%sendFileNum);
+//            for (File file:fileList) {
+//
+//            }
            // break;
         }
 

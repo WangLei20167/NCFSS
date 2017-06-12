@@ -8,6 +8,7 @@ package msg;
 public class MsgValue {
     public static final int APOPENSUCCESS = 0;  //开启热点成功
     public static final int APOPENFAILED = 1;   //开启热点失败
+    public static final int TELL_ME_SOME_INFOR=21;  //用于显示提示信息
 
     /**
      * 处理TCPClient的信息
@@ -21,6 +22,7 @@ public class MsgValue {
     public final static int SET_SEND_PROGRESS=13;   //设置发送进度
     public final static int C_SOCKET_END_FLAG=18;
     public final static int C_REV_ALL_FINISH=19;   //所有文件接收完毕
+    public final static int C_CREATE_ENCODE_FILE_FOLDER=20;//创建接收编码文件的目录
 
     /**
      * 处理TCPServer的信息

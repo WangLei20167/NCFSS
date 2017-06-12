@@ -189,7 +189,7 @@ public class WifiAdmin {
         config.SSID = "\"" + SSID + "\"";
 
         //相同ssid时 用在配置bssid   是否有用？
-        config.BSSID="\"" + bssid + "\"";
+        //config.BSSID="\"" + bssid + "\"";
 
         WifiConfiguration tempConfig = this.IsExsits(SSID);
         if(tempConfig != null) {
@@ -278,6 +278,7 @@ public class WifiAdmin {
                         bssid=mWifiList.get(i).BSSID;
                         wifi_level = _level;
                     }
+                    //break;
                 }
             }
             if(!have_want_ssid){
