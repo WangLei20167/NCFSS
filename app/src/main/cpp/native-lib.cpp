@@ -7,16 +7,21 @@ extern "C"{
     jboolean** Inverse(jboolean** G, int n);
 
     JNIEXPORT jobjectArray JNICALL
-    Java_com_example_administrator_ncfss_MainActivity_Encode(JNIEnv *env, jobject instance,jbyteArray buffer_, jint N, jint K,jint nLen);
+    Java_nc_NCUtil_Encode(JNIEnv *env, jobject instance,jbyteArray buffer_, jint N, jint K,jint nLen);
 
     JNIEXPORT jobjectArray JNICALL
-    Java_com_example_administrator_ncfss_MainActivity_Decode(JNIEnv *env, jobject instance, jobjectArray buffer,
+    Java_nc_NCUtil_Decode(JNIEnv *env, jobject instance, jobjectArray buffer,
     jint nPart, jint nLength);
 
     JNIEXPORT jobjectArray JNICALL
-    Java_com_example_administrator_ncfss_MainActivity_Reencode(JNIEnv *env, jobject instance,
+    Java_nc_NCUtil_Reencode(JNIEnv *env, jobject instance,
     jobjectArray buffer, jint nPart,
     jint nLength);
+
+    JNIEXPORT jint JNICALL
+    Java_nc_NCUtil_getRank(JNIEnv *env, jobject instance,
+    jobjectArray matrix, jint row,
+    jint col);
 }
 
 //此处jbyte和c++中的byte预定义不一样
@@ -295,8 +300,9 @@ jboolean** Inverse(jboolean** G, int n){
 }
 
 JNIEXPORT jobjectArray JNICALL
-Java_com_example_administrator_ncfss_MainActivity_Encode(JNIEnv *env, jobject instance,
-jbyteArray buffer_, jint N, jint K,jint nLen) {
+    Java_nc_NCUtil_Encode(JNIEnv *env, jobject instance,
+    jbyteArray buffer_, jint N, jint K,jint nLen) {
+
     jbyte *buffer = env->GetByteArrayElements(buffer_, NULL);
 
     // TODO
@@ -340,6 +346,7 @@ jbyteArray buffer_, jint N, jint K,jint nLen) {
     {
         for (j = 0; j < K; j++)
         {
+            //当为0时，是否会消除一部分数据？
             encodeMatrix[i][j] = rand() % 256;
         }
     }
@@ -384,8 +391,8 @@ jbyteArray buffer_, jint N, jint K,jint nLen) {
 }
 
 JNIEXPORT jobjectArray JNICALL
-Java_com_example_administrator_ncfss_MainActivity_Decode(JNIEnv *env, jobject instance, jobjectArray buffer,
-jint nPart, jint nLength) {
+    Java_nc_NCUtil_Decode(JNIEnv *env, jobject instance,
+    jobjectArray buffer, jint nPart, jint nLength) {
 
     // TODO
     /**接收二维数组参数转为jboolean类型*/
@@ -472,9 +479,8 @@ jint nPart, jint nLength) {
 
 
 JNIEXPORT jobjectArray JNICALL
-Java_com_example_administrator_ncfss_MainActivity_Reencode(JNIEnv *env, jobject instance,
-jobjectArray buffer, jint nPart,
-jint nLength) {
+Java_nc_NCUtil_Reencode(JNIEnv *env, jobject instance,
+    jobjectArray buffer, jint nPart, jint nLength) {
 
     // TODO
     /**接收二维数组参数转为jboolean类型*/
@@ -557,6 +563,148 @@ jint nLength) {
     }
     return resultArray;
 
+}
+
+
+
+/**
+ * 求秩的函数
+ */
+JNIEXPORT jint JNICALL
+Java_nc_NCUtil_getRank(JNIEnv *env, jobject instance, jobjectArray matrix, jint nRow, jint nCol){
+
+    jbyte ** Buffer= new jbyte *[nRow];
+    for (int i = 0; i < nRow; i++) {
+        Buffer[i] = new jbyte[nCol];
+        jbyteArray bytedata = (jbyteArray) env->GetObjectArrayElement(matrix, i);
+        Buffer[i] = env->GetByteArrayElements(bytedata, 0);
+        //env->GetBooleanArrayRegion(bytedata,0,nLength,(jboolean *)&MAT[i]);
+        env->DeleteLocalRef(bytedata);//释放内存，防止内存泄漏
+    }
+
+    jboolean ** Buffer1= (jboolean **) Buffer;
+
+
+    gf_init(8, 0x00000187);
+
+
+    //转存下数据
+    jboolean **M = new jboolean*[nRow];
+    for (int j = 0; j<nRow; j++)
+    {
+        M[j] = new jboolean[nCol];
+    }
+
+    for (int i = 0; i<nRow; i++)
+    {
+        for (int j = 0; j<nCol; j++)
+        {
+            M[i][j] = *(*(Buffer1 + i) + j);
+        }
+    }
+
+
+    // Define a variable to record the position of the main element.
+    int yPos = 0;
+
+    for (int i = 0; i<nRow; i++)
+    {
+        // Find the main element which must be non-zero.
+
+        bool bFind = false;
+
+        for (int x = yPos; x<nCol; x++)
+        {
+            for (int k = i; k<nRow; k++)
+            {
+                if (M[k][x] != 0)
+                {
+                    // Exchange the two vectors.
+                    for (int x = 0; x<nCol; x++)
+                    {
+                        jboolean nVal = M[i][x];
+                        M[i][x] = M[k][x];
+                        M[k][x] = nVal;
+                    }										// We have exchanged the two vectors.
+                    bFind = true;
+                    break;
+                }
+            }
+            if (bFind == true)
+            {
+                yPos = x;
+                break;
+            }
+        }
+
+
+
+        for (int j = i + 1; j<nRow; j++)
+        {
+        // Now, the main element must be nonsingular.
+            unsigned int temp = gf_div(M[j][yPos], M[i][yPos]);
+            for (int z = 0; z<nCol; z++)
+            {
+                M[j][z] = (jboolean)(gf_add(M[j][z], gf_mul(temp, M[i][z])));
+            }
+        }
+        //
+        yPos++;
+
+    }
+
+    // The matrix becomes a scalar matrix. we need to make more elements become 0 with elementary transformations.
+    yPos = 0;
+    for (int i = 1; i<nRow; i++)
+    {
+        for (int j = 0; j<nCol; j++)
+        {
+            if (M[i][j] != 0)
+            {
+                // the main element is found.
+                yPos = j;
+                break;
+            }
+        }
+        for (int k = 0; k<i; k++)
+        {
+            unsigned int temp = gf_div(M[k][yPos], M[i][yPos]);
+            for (int z = 0; z<nCol; z++)
+            {
+                M[k][z] = (jboolean)(gf_add(M[k][z], gf_mul(temp, M[i][z])));
+            }
+        }
+    }
+
+    int nRank = 0;
+     // Get the rank.
+    for (int i = 0; i<nRow; i++)
+    {
+        int nNonzero = 0;
+        for (int j = 0; j<nCol; j++)
+        {
+            if (M[i][j] != 0)
+            {
+                nNonzero++;
+            }
+        }
+        // If there is only one nonzero element in the new matrix, it is concluded an original packet is leaked.
+        if (nNonzero > 0)
+        {
+        // Leaked.
+            nRank++;
+        }
+    }
+    //清空内存
+    gf_uninit();
+    for (int i = 0; i<nRow; i++)
+    {
+        delete[] Buffer[i];
+        delete[]  M[i];
+    }
+    delete[] Buffer;
+    delete[] M;
+    return nRank;
 }
 
 

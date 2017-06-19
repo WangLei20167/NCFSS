@@ -38,9 +38,8 @@ public class TCPClient {
     private String FileRevPath;
 
 
-
     //用作判断socket是否已经建立
-    private boolean socket_flag=false;
+    private boolean socket_flag = false;
 
     public TCPClient(Context context, String TempPath, String FileRevPath, Handler handler) {
         this.context = context;
@@ -60,7 +59,6 @@ public class TCPClient {
             out = new DataOutputStream(socket.getOutputStream());//发送
 
 
-
         } catch (IOException e) {
             e.printStackTrace();
             //连接失败
@@ -68,14 +66,14 @@ public class TCPClient {
             return false;
         }
         //连接成功，启动接收线程
-        socket_flag=true;
+        socket_flag = true;
         //在此发送本机型号
-        byte[] send_phoneName=new byte[255];
-        String phoneName= LocalInfor.getPhoneModel()+"#";
-        byte[] bt_phoneName= phoneName.getBytes();
-        int len=bt_phoneName.length;
-        for(int i=0;i<len;i++){
-            send_phoneName[i]=bt_phoneName[i];
+        byte[] send_phoneName = new byte[255];
+        String phoneName = LocalInfor.getPhoneModel() + "#";
+        byte[] bt_phoneName = phoneName.getBytes();
+        int len = bt_phoneName.length;
+        for (int i = 0; i < len; i++) {
+            send_phoneName[i] = bt_phoneName[i];
         }
         try {
             out.write(send_phoneName);
@@ -95,7 +93,7 @@ public class TCPClient {
     public void disconnectServer() {
         try {
             //关闭前向服务端发送信息
-            String str_flag= Constant.END_FLAG+"#"+0+"#"+0+"#";
+            String str_flag = Constant.END_FLAG + "#" + 0 + "#" + 0 + "#";
             out.write(str_flag.getBytes());
 
             //关闭流
@@ -103,7 +101,7 @@ public class TCPClient {
             in.close();
             //关闭Socket
             socket.close();
-            socket_flag=false;
+            socket_flag = false;
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -116,36 +114,37 @@ public class TCPClient {
             public void run() {
                 byte[] getBytes = new byte[255];
                 //待接收的文件长度和数目
-                String phoneName="";    //获取手机名称
+                String phoneName = "";    //获取手机名称
 
                 //int fileNum = 0;
                 //int restFileNum = 0;
                 String fileName = "";
                 int fileLen = 0;
-                int total_file_len=0;
-                int already_rev_len=0;
+                int total_file_len = 0;
+                int already_rev_len = 0;
                 // int fileNameCount=1;
                 //String tempFilePath="";
-                boolean getSPInfor=true;    //得到socketSever的手机信息
-               // String clientPhoneInfor="";
+                boolean getSPInfor = true;    //得到socketSever的手机信息
+                // String clientPhoneInfor="";
                 int readBytesNum = -1;
                 //限制读取字节数，防止接收端出现的粘包现象
-                int limit_readNum=getBytes.length;
+                int limit_readNum = getBytes.length;
                 boolean isFirstMsg = true;
-                String folderName="";
-                String origin_file_name="";
-                String revPath="";
+                String folderName = "";
+
+                String origin_file_name = "";
+                String revPath = "";
                 while (socket_flag) {
                     if (socket.isConnected()) {
                         if (!socket.isInputShutdown()) {
                             try {
                                 if ((readBytesNum = in.read(getBytes, 0, limit_readNum)) > -1) {
 
-                                    if(getSPInfor){
+                                    if (getSPInfor) {
                                         //获得SP_Name
-                                        getSPInfor=false;
-                                        String str=new String(getBytes,0,readBytesNum);
-                                        String[] split =str.split("#");
+                                        getSPInfor = false;
+                                        String str = new String(getBytes, 0, readBytesNum);
+                                        String[] split = str.split("#");
                                         int flag = 1;
                                         for (String val : split) {
                                             if (flag == 1) {
@@ -155,7 +154,7 @@ public class TCPClient {
                                             }
                                         }
                                         SendMessage(MsgValue.SP_NAME, 0, 0, phoneName);
-                                        SendMessage(MsgValue.SET_SERVER_CIRPRO,0,0,phoneName);
+                                        SendMessage(MsgValue.SET_SERVER_CIRPRO, 0, 0, phoneName);
                                         //结束这次循环
                                         continue;
                                     }
@@ -169,15 +168,19 @@ public class TCPClient {
 //                                            name_len[i]=getBytes[i+1];
 //                                        }
 
-                                        String fileName_Len = new String(getBytes,0,readBytesNum);
+                                        String fileName_Len = new String(getBytes, 0, readBytesNum);
                                         String[] split = fileName_Len.split("#");
                                         int flag = 1;
+                                        String newFolderName = "";
                                         for (String val : split) {
                                             if (flag == 1) {
                                                 //文件名
                                                 fileName = val;
                                                 ++flag;
                                             } else if (flag == 2) {
+                                                if (val.equals("")) {
+                                                    break;
+                                                }
                                                 //文件长度
                                                 try {
                                                     fileLen = Integer.parseInt(val);
@@ -188,9 +191,9 @@ public class TCPClient {
                                                 }
                                                 ++flag;
 
-                                            }else if(flag==3){
+                                            } else if (flag == 3) {
                                                 try {
-                                                    total_file_len=Integer.parseInt(val);
+                                                    total_file_len = Integer.parseInt(val);
                                                 } catch (NumberFormatException e) {
                                                     e.printStackTrace();
                                                     //接收文件总长度失败   不是数字转化为int出错
@@ -198,27 +201,47 @@ public class TCPClient {
                                                 }
                                                 ++flag;
 
-                                            }else if(flag==4){
-                                                folderName=val;
-                                                revPath=TempPath+File.separator+folderName+File.separator+ ConstantValue.ENCODE_FILE_FOLDER;
+                                            } else if (flag == 4) {
+                                                //folderName=val;
+                                                newFolderName = val;
+
                                                 ++flag;
 
-                                            }else if(flag==5){
-                                                if(!val.equals("")){
-                                                    origin_file_name=val;
-
-                                                    SendMessage(MsgValue.C_CREATE_ENCODE_FILE_FOLDER, 0, 0, folderName+"#"+origin_file_name);
+                                            } else if (flag == 5) {
+                                                if (!val.equals("")) {
+                                                    //获取原文件名
+                                                    origin_file_name = val;
                                                 }
+                                                ++flag;
+
+                                            } else if (flag == 6) {
+                                                //证明不是第一次收到此文件夹的数据  0代表还需数据  1带代表不需
+                                                int haveAllNeedFile = 0;
+                                                try {
+                                                    haveAllNeedFile = Integer.parseInt(val);
+                                                } catch (NumberFormatException e) {
+                                                    e.printStackTrace();
+                                                }
+
+                                                if (folderName.equals(newFolderName)) {
+                                                    haveAllNeedFile = 1;
+                                                } else {
+                                                    folderName = newFolderName;
+                                                }
+                                                revPath = TempPath + File.separator + folderName + File.separator + ConstantValue.ENCODE_FILE_FOLDER;
+
+                                                //去构造接收目录
+                                                SendMessage(MsgValue.C_CREATE_ENCODE_FILE_FOLDER, haveAllNeedFile, 0, folderName + "#" + origin_file_name);
                                                 ++flag;
                                                 //跳出循环
                                                 break;
                                             }
                                         }
                                         //处理结束标志
-                                        if(fileName.equals(Constant.END_FLAG)&&(fileLen==0)){
-                                            socket_flag=false;
+                                        if (fileName.equals(Constant.END_FLAG) && (flag == 2)) {
+                                            socket_flag = false;
                                             //关掉圆形进度球
-                                            SendMessage(MsgValue.C_SOCKET_END_FLAG,0,0,null);
+                                            SendMessage(MsgValue.C_SOCKET_END_FLAG, 0, 0, null);
                                             //关闭流
                                             in.close();
                                             out.close();
@@ -226,12 +249,13 @@ public class TCPClient {
 
                                             break;
                                         }
-                                        if(fileLen<getBytes.length){
-                                            limit_readNum=fileLen;
+                                        if (fileLen < getBytes.length) {
+                                            limit_readNum = fileLen;
                                         }
                                         //结束这次循环
                                         continue;
                                     }
+
                                     //将socket中的内容写入文件
                                     File file = MyFileUtils.creatFile(revPath, fileName);
                                     FileOutputStream fos = new FileOutputStream(file);
@@ -241,16 +265,16 @@ public class TCPClient {
                                     while (readBytes < fileLen) {
                                         fos.write(getBytes, 0, readBytesNum);
                                         readBytes += readBytesNum;   //记录已经写入的文件个数
-                                        already_rev_len+= readBytesNum;  //记录已经接收的文件长度（写入文件算为接收成功）
+                                        already_rev_len += readBytesNum;  //记录已经接收的文件长度（写入文件算为接收成功）
                                         //设置接收进度
-                                        SendMessage(MsgValue.SET_REV_PROGRESS,(int)((already_rev_len/(float)total_file_len)*100),0,phoneName);
+                                        SendMessage(MsgValue.SET_REV_PROGRESS, (int) ((already_rev_len / (float) total_file_len) * 100), 0, phoneName);
                                         if (readBytes < fileLen) {
-                                            int rest_len=fileLen-readBytes;
+                                            int rest_len = fileLen - readBytes;
                                             //防止多读取字节
-                                            if(rest_len<255){
-                                                readBytesNum = in.read(getBytes,0,rest_len);
-                                            }else {
-                                                readBytesNum = in.read(getBytes,0,255);
+                                            if (rest_len < 255) {
+                                                readBytesNum = in.read(getBytes, 0, rest_len);
+                                            } else {
+                                                readBytesNum = in.read(getBytes, 0, 255);
                                             }
 
                                         }
@@ -265,17 +289,15 @@ public class TCPClient {
 
                                     //用于下次接收
                                     isFirstMsg = true;
-                                    limit_readNum=getBytes.length;
+                                    limit_readNum = getBytes.length;
 
                                     //代表所有文件已经接收完毕
-                                    if((already_rev_len>=total_file_len)&&total_file_len!=0){
-                                        already_rev_len=0;
-                                        total_file_len=0;
+                                    if ((already_rev_len >= total_file_len) && total_file_len != 0) {
+                                        already_rev_len = 0;
+                                        total_file_len = 0;
                                         //所有文件接收完毕
                                         SendMessage(MsgValue.C_REV_ALL_FINISH, 0, 0, folderName);
                                     }
-
-
 
 
                                 }
@@ -292,24 +314,18 @@ public class TCPClient {
     //向Server发送文件
     public void sendFile(ArrayList<File> fileList) {
         //统计所有文件长度
-        int total_file_len=0;
-        int already_send_len=0;
-        for(File file:fileList){
-          //  File file = Utils.getFileForUri(uri0);
-           // File file = Utils.getFileForUri(uri0);
-//            if(file.length()>Integer.MAX_VALUE){
-//                //文件过长
-//                file.getName();
-//            }
-            total_file_len+=file.length();
+        int total_file_len = 0;
+        int already_send_len = 0;
+        for (File file : fileList) {
+            total_file_len += file.length();
         }
 
-        for (File file:fileList) {
-           // File file = Utils.getFileForUri(uri);
+        for (File file : fileList) {
+            // File file = Utils.getFileForUri(uri);
             //需要先发送文件名和文件长度
             InputStream input = null;
             try {
-                String fileName_Len_totalLen = file.getName() + "#" + file.length() + "#"+total_file_len+"#";
+                String fileName_Len_totalLen = file.getName() + "#" + file.length() + "#" + total_file_len + "#";
                 //long fileLen = file.length();
 //                    if (fileLen > Integer.MAX_VALUE) {
 //                        //文件过大 超4G
@@ -321,17 +337,97 @@ public class TCPClient {
                 for (int i = 0; i < len_name_len; i++) {
                     send_len_name[i] = len_name[i];
                 }
-                //Arrays.fill(send_len_name,(byte)0);
-//                    byte[] bt_len= IntAndBytes.int2byte((int)file.length());
-//                    for(int i=0;i<4;i++){
-//                        send_len_name[i]=bt_len[i];
+
+                out.write(send_len_name);
+
+
+                //读取文件内容发送
+                input = new FileInputStream(file);
+                byte[] data = new byte[1024];
+                int len = -1;
+                // int already_send_data=0;
+                while ((len = input.read(data)) != -1) {
+                    // out.write(data, 0, len);
+                    out.write(data, 0, len);
+                    already_send_len += len;
+                    SendMessage(MsgValue.SET_SEND_PROGRESS, (int) ((already_send_len / (float) total_file_len) * 100), 0, "");
+                    //Arrays.fill(data,(byte)0);
+                }
+                //关闭输入输出流
+                //out.close();//若是关系，无法再次接收
+                input.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+                //文件发送异常
+            }
+        }
+    }
+
+    public void SendFile(MyEncodeFile myEncodeFile, int sfn) {
+
+        String fileFolderName = myEncodeFile.getFileFolderName();
+        String path = myEncodeFile.getSendFilePath();
+        int sendFlag = myEncodeFile.getSendFlag();
+        int sendFileNum = myEncodeFile.getRecode_file_num();
+        if(sendFileNum==0){
+            return;
+        }
+        //此标志位用来告知client自己是否还需要编码文件
+        int haveAllNeedFile = 0;
+        if (myEncodeFile.getBl_decode()) {
+            haveAllNeedFile = 1;
+        }
+
+        String origin_file_name = myEncodeFile.getFileName();
+        //若是设置的SFN值大于已有文件数目
+        if (sfn > sendFileNum) {
+            sfn = sendFileNum;
+        }
+
+        //获取要发送的文件列表
+        ArrayList<File> fileList = MyFileUtils.getListFiles(path);
+        int total_file_len = 0;
+
+        int sfn_flag = 0;
+        for (File file : fileList) {
+            // File file = Utils.getFileForUri(uri0);
+//            if(file.length()>Integer.MAX_VALUE){
+//                //文件过长
+//                file.getName();
+//            }
+            total_file_len += file.length();
+            ++sfn_flag;
+            if (sfn_flag == sfn) {
+                break;
+            }
+        }
+
+        //按socket
+
+        int already_send_len = 0;   //记录已经发送的字节数
+        InputStream input = null;
+        for (int n = 0; n < sfn; ++n) {
+            //发送数目
+            int sf = (sendFlag + n) % sendFileNum;
+            File file = fileList.get(sf);
+            // File file = Utils.getFileForUri(uri);
+            try {
+                //设置非延迟发送
+                socket.setTcpNoDelay(true);
+//                out = new DataOutputStream(socket.getOutputStream());//发送
+                String fileName_Len_totalLen = file.getName() + "#" + file.length() + "#" + total_file_len + "#" + fileFolderName + "#" + origin_file_name + "#" + haveAllNeedFile + "#";
+                //long fileLen = file.length();
+//                    if (fileLen > Integer.MAX_VALUE) {
+//                        //文件过大 超4G
+//                        //break;
 //                    }
-//                    byte[] bt_name=file.getName().getBytes();
-//                    byte name_len=(byte)bt_name.length;
-//                    send_len_name[4]=name_len;
-//                    for(int i=5;i<5+name_len;i++){
-//                        send_len_name[i]=bt_name[i-5];
-//                    }
+                //写入文件名字和长度
+                byte[] send_len_name = new byte[255];
+                byte[] len_name = fileName_Len_totalLen.getBytes();
+                int len_name_len = len_name.length;
+                for (int i = 0; i < len_name_len; i++) {
+                    send_len_name[i] = len_name[i];
+                }
 
 
                 out.write(send_len_name);
@@ -345,31 +441,27 @@ public class TCPClient {
                 //读取文件内容发送
                 input = new FileInputStream(file);
                 byte[] data = new byte[1024];
-                int len=-1;
-               // int already_send_data=0;
+                int len = -1;
+                //int already_send_data=0;
                 while ((len = input.read(data)) != -1) {
-                    // out.write(data, 0, len);
                     out.write(data, 0, len);
-                    already_send_len+=len;
-                    SendMessage(MsgValue.SET_SEND_PROGRESS,(int)((already_send_len/(float)total_file_len)*100),0,"");
-                    //Arrays.fill(data,(byte)0);
+                    already_send_len += len;
+                    //already_send_data+=len;
+                    SendMessage(MsgValue.SET_SEND_PROGRESS, (int) ((already_send_len / (float) total_file_len) * 100), 0, "");
                 }
                 //关闭输入输出流
-                //out.close();//若是关系，无法再次接收
+                //out.close();//若是关闭，无法再次接收
                 input.close();
 
-                //暂停40ms用来防止小包 粘包
-                //文件与文件之间让其暂停100ms   防止粘包
-//                    try {
-//                        Thread.sleep(100);
-//                    } catch (InterruptedException e) {
-//                        e.printStackTrace();
-//                    }
             } catch (IOException e) {
                 e.printStackTrace();
                 //文件发送异常
             }
         }
+        //使连续两次发送的数据不一样
+        myEncodeFile.setSendFlag((sendFlag + sfn) % sendFileNum);
+
+
     }
 
 

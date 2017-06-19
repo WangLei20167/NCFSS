@@ -7,7 +7,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  * Created by Administrator on 2017/5/14 0014.
@@ -21,7 +24,7 @@ public class MyFileUtils {
      * @param fileName  文件名
      * @param inputData
      */
-    public static void writeToFile(String path, String fileName, byte[] inputData) {
+    public static File writeToFile(String path, String fileName, byte[] inputData) {
 
         File myFile = new File(path + File.separator + fileName);
         FileOutputStream fos = null;
@@ -62,6 +65,8 @@ public class MyFileUtils {
                 }
             }
         }
+
+        return myFile;
     }
 
     /**
@@ -112,7 +117,45 @@ public class MyFileUtils {
         return buffer;
 
     }
+    public static byte[] readFile(File file) {
+        if (!file.exists()) {
+            try {
+                file.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return null;
+        }
 
+        long fileSize = file.length();
+        if (fileSize > Integer.MAX_VALUE) {
+            System.out.println("file too big...");
+            return null;
+        }
+
+        byte[] buffer = new byte[0];
+        try {
+            FileInputStream fi = new FileInputStream(file);
+            buffer = new byte[(int) fileSize];
+            int offset = 0;
+            int numRead = 0;
+            while (offset < buffer.length
+                    && (numRead = fi.read(buffer, offset, buffer.length - offset)) >= 0) {
+                offset += numRead;
+            }
+            // 确保所有数据均被读取
+            if (offset != buffer.length) {
+                throw new IOException("Could not completely read file "
+                        + file.getName());
+            }
+            fi.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+        return buffer;
+
+    }
 
     /**
      * 在指定路径下创建File，并返回File对象
@@ -134,6 +177,7 @@ public class MyFileUtils {
                 e.printStackTrace();
             }
         }
+
         return myFile;
     }
 
@@ -207,6 +251,31 @@ public class MyFileUtils {
         return folderList;
     }
 
+
+
+    /**
+     * 获取一级目录下所有文件和文件夹
+     * @param obj
+     * @return
+     */
+    public static ArrayList<File> getList(Object obj){
+        File directory = null;
+        if (obj instanceof File) {
+            directory = (File) obj;
+        } else {
+            directory = new File(obj.toString());
+        }
+        ArrayList<File> folderList = new ArrayList<File>();
+        if (directory.isDirectory()) {
+            File[] fileArr = directory.listFiles();
+            for (int i = 0; i < fileArr.length; ++i) {
+                File fileOne = fileArr[i];
+                folderList.add(fileOne);
+            }
+        }
+        return folderList;
+    }
+
     /**
      * 获取一个目录下文件的数目，不包含文件夹，只查找一级目录
      */
@@ -257,6 +326,36 @@ public class MyFileUtils {
             }
             //这句加上的话  指定路径也会被删除
             //directory.delete();
+        }
+    }
+
+
+
+
+    /**
+     * 合并文件
+     * @param outFile 输出路径
+     * @param files   需要合并的文件路径
+     */
+    public static final int BUFSIZE = 1024 * 8;
+    public static void mergeFiles(String outFile, String[] files) {
+        FileChannel outChannel = null;
+        try {
+            outChannel = new FileOutputStream(outFile).getChannel();
+            for(String f : files){
+                FileChannel fc = new FileInputStream(f).getChannel();
+                ByteBuffer bb = ByteBuffer.allocate(BUFSIZE);
+                while(fc.read(bb) != -1){
+                    bb.flip();
+                    outChannel.write(bb);
+                    bb.clear();
+                }
+                fc.close();
+            }
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
+        } finally {
+            try {if (outChannel != null) {outChannel.close();}} catch (IOException ignore) {}
         }
     }
 

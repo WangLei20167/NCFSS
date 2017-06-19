@@ -13,7 +13,10 @@ import utils.MyFileUtils;
  */
 
 public class MyEncodeFile {
-    private boolean bl_decode = false;   //记录是否已经进行了解码,此位为true，则表明无需再获取数据
+    private int piecesNum=0;
+
+
+    private boolean bl_decode = false;   //记录是否已经可以进行了解码,此位为true，则表明无需再获取数据
     private int fileNum = 0;    //指的是编码数据的个数
     private int needFileNum = 0;  //一共需要多少文件可以解码
 
@@ -38,7 +41,6 @@ public class MyEncodeFile {
         }else {
             String _filename_folder = fileName.substring(0, fileName.lastIndexOf("."));   //获取不含后缀的文件名,作为文件夹名字
             this.fileFolderName = _filename_folder + "_" + LocalInfor.getCurrentTime("HHmmss");  //尽量做到文件夹名字唯一
-
         }
 
         this.filePath = MyFileUtils.creatFolder(tempPath, this.fileFolderName);
@@ -70,13 +72,13 @@ public class MyEncodeFile {
             }
         }
         recode_file_num = MyFileUtils.getFileNum(sendFilePath);  //获取再编码文件目录下的文件数目
-        if (fileNum != 0 && (fileNum == needFileNum)) {
+        if (fileNum != 0 && (fileNum >= needFileNum)) {
             bl_decode = true; //证明文件数目已经够了，不再需要文件
         }
     }
 
 
-    public boolean isBl_decode() {
+    public boolean getBl_decode() {
         return bl_decode;
     }
 

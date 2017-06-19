@@ -36,6 +36,7 @@ public class MsgValue {
     public final static int S_SET_REV_PROGRESS=15;   //设置接收进度
     public final static int S_SET_SENT_PROGRESS=16;   //设置发送进度
     public final static int S_SOCET_END_FLAG=17;     //socket关闭
+    public final static int S_CREATE_ENCODE_FILE_FOLDER=22;//创建接收编码文件的目录
 
 
     /**
