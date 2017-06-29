@@ -16,7 +16,7 @@ extern "C"{
     JNIEXPORT jobjectArray JNICALL
     Java_nc_NCUtil_Reencode(JNIEnv *env, jobject instance,
     jobjectArray buffer, jint nPart,
-    jint nLength);
+    jint nLength,jint outputNum);
 
     JNIEXPORT jint JNICALL
     Java_nc_NCUtil_getRank(JNIEnv *env, jobject instance,
@@ -299,6 +299,8 @@ jboolean** Inverse(jboolean** G, int n){
 
 }
 
+
+//编码
 JNIEXPORT jobjectArray JNICALL
     Java_nc_NCUtil_Encode(JNIEnv *env, jobject instance,
     jbyteArray buffer_, jint N, jint K,jint nLen) {
@@ -390,6 +392,8 @@ JNIEXPORT jobjectArray JNICALL
     return resultArray;
 }
 
+
+//解码
 JNIEXPORT jobjectArray JNICALL
     Java_nc_NCUtil_Decode(JNIEnv *env, jobject instance,
     jobjectArray buffer, jint nPart, jint nLength) {
@@ -451,7 +455,7 @@ JNIEXPORT jobjectArray JNICALL
     int mWidth=nLength-nPart-1;          //矩阵列数
     jboolean** dataMat;                  //用来存储编码结果nPart*(nLength - nPart - 1)的矩阵
     dataMat = Multiply(IvEncodeMAT, MAT1, nPart, nPart, mWidth);
-
+/*
     //    int mWidth=nLength;
     //    jbyte** Mat;
     //    Mat = new jbyte*[nPart];
@@ -464,6 +468,7 @@ JNIEXPORT jobjectArray JNICALL
     ////            Mat[i][j] = MAT[i][j];
     //        }
     //    }
+    */
     jbyte** Mat= (jbyte **) dataMat;
 
     jobjectArray resultArray= env->NewObjectArray(nPart,env->FindClass("[B"),NULL);
@@ -480,7 +485,7 @@ JNIEXPORT jobjectArray JNICALL
 
 JNIEXPORT jobjectArray JNICALL
 Java_nc_NCUtil_Reencode(JNIEnv *env, jobject instance,
-    jobjectArray buffer, jint nPart, jint nLength) {
+    jobjectArray buffer, jint nPart, jint nLength,jint outputNum) {
 
     // TODO
     /**接收二维数组参数转为jboolean类型*/
@@ -518,12 +523,12 @@ Java_nc_NCUtil_Reencode(JNIEnv *env, jobject instance,
 
     //生成随机的再编码矩阵
     jboolean ** re_encodeMatrix;
-    re_encodeMatrix = new jboolean*[nPart];
+    re_encodeMatrix = new jboolean*[outputNum];
     for (i = 0; i < nPart; i++){
         re_encodeMatrix[i] = new jboolean[nPart];
     }
     srand((unsigned)time(NULL));
-    for (i = 0; i < nPart; i++)
+    for (i = 0; i < outputNum; i++)
     {
         for (j = 0; j < nPart; j++)
         {
@@ -533,34 +538,32 @@ Java_nc_NCUtil_Reencode(JNIEnv *env, jobject instance,
 
 
     jboolean ** MAT;                                 //再编码
-    MAT = Multiply(re_encodeMatrix, matrix1, nPart, nPart, nLength-1);
+    MAT = Multiply(re_encodeMatrix, matrix1, outputNum, nPart, nLength-1);
 
-    for (i = 0; i < nPart; i++){                   //把再编码后的数据重新读回数组
+    for (i = 0; i < outputNum; i++){                   //把再编码后的数据重新读回数组
         for (j = 1; j < nLength; j++){
             Buffer[i][j] = MAT[i][j - 1];
         }
     }
 
     int mWidth=nLength;
-    //    jbyte** Mat;
-    //    Mat = new jbyte*[nPart];
-    //    for (i = 0; i <nPart ; i++){
-    //        Mat[i] = new jbyte[mWidth];
-    //    }
-    //    for (i = 0; i < nPart; i++){
-    //        for (j = 0; j <mWidth; j++){
-    //            Mat[i][j] = Buffer[i][j];
-    //        }
-    //    }
     jbyte** Mat= (jbyte **) Buffer;//指针替换
-
     jobjectArray resultArray= env->NewObjectArray(nPart,env->FindClass("[B"),NULL);
-    for (int i = 0; i < nPart; i++) {
+    for (int i = 0; i < outputNum; i++) {
         jbyteArray byteArray= env->NewByteArray(mWidth);
         env->SetByteArrayRegion(byteArray, 0, mWidth, Mat[i]);
         env->SetObjectArrayElement(resultArray, i, byteArray);
         env->DeleteLocalRef(byteArray);
     }
+
+    for(int i=0;i<nPart;++i){
+        delete[] matrix1[i];
+    }
+    delete[] matrix1;
+    for(int i=0;i<outputNum;++i){
+        delete[] re_encodeMatrix[i];
+    }
+    delete[] re_encodeMatrix;
     return resultArray;
 
 }
@@ -636,8 +639,6 @@ Java_nc_NCUtil_getRank(JNIEnv *env, jobject instance, jobjectArray matrix, jint 
                 break;
             }
         }
-
-
 
         for (int j = i + 1; j<nRow; j++)
         {

@@ -175,7 +175,7 @@ public class FilesListViewActivity extends AppCompatActivity {
                 for (File file : files) {
                     file.delete();
                 }
-                MyFileUtils.deleteAllFile(currentPath);
+                MyFileUtils.deleteAllFile(currentPath,false);
                 showFileList(currentPath);
                 Toast.makeText(this, "此目录所有文件已删除", Toast.LENGTH_SHORT).show();
                 break;

@@ -34,4 +34,21 @@ public class IntAndBytes {
             return bt;
         }
     }
+
+
+    /**
+     * 把指令和待发送的长度封入byte[5]数组
+     * @param instruction
+     * @param len
+     * @return
+     */
+    public static byte[] send_instruction_len(int instruction,int len){
+        byte[] bt_len=IntAndBytes.int2byte(len);
+        byte[] bt_send=new byte[5];
+        bt_send[0]=(byte)instruction;
+        for(int i=1;i<5;++i){
+            bt_send[i]=bt_len[i-1];
+        }
+        return bt_send;
+    }
 }

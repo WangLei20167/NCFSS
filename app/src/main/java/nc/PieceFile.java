@@ -7,6 +7,7 @@ import org.json.JSONObject;
 import java.io.File;
 import java.util.ArrayList;
 
+import utils.LocalInfor;
 import utils.MyFileUtils;
 
 /**
@@ -15,28 +16,27 @@ import utils.MyFileUtils;
  */
 
 public class PieceFile {
+    //需要nK个文件本片才能解码
     private int nK;
     //这个分片文件的路径
     private String pieceFilePath;
     private boolean haveNeedFile = false;
     //其下的两个文件夹
     //用来存储现有的文件夹
-    private String pieceEncodeFilePath;
-    private ArrayList<File> piecesEncodeFiles = new ArrayList<File>();
+    private String pieceEncodeFilePath = "";   //此用来存储编码文件
 
-    private int pieceNo;             //第几片  也是文件片名
-    private int pieceFileNum;        //用来记录一片中编码文件的个数
+    private int pieceNo = 0;             //第几片  也是文件片名
+    private int pieceFileNum = 0;        //用来记录一片中编码文件的个数
     private byte[][] coefMatrix = null;     //编码系数矩阵
     private JSONObject json_pfile_config = new JSONObject();   //用以存储文件个数和编码系数矩阵
 
-
     //对现有编码后用于发送的文件夹
-    private String ready_to_send_path;
-    private File file_ready_to_send;     //由piecesEncodeFiles随机编码生成
+    private String ready_to_send_path;    //其中包含将要发送的文件
 
-    // private File piece_recover_file;
-    private String piece_recover_file_path;
-    private boolean pieceDecoded = false;   //标志这个片文件是否已经解码
+    private File piece_recover_file;
+    private ArrayList<File> piecesEncodeFiles = new ArrayList<File>();
+    private File ready_to_send_file = null;
+
 
     //初次编码时存数据调用
     public PieceFile(String path, int pieceNo, int nK) {
@@ -44,17 +44,35 @@ public class PieceFile {
         //构建pieceFile文件目录
         this.pieceNo = pieceNo;
         pieceFilePath = MyFileUtils.creatFolder(path, pieceNo + "");
-        piece_recover_file_path = pieceFilePath + File.separator + pieceNo + ".decode";
+
         //创建二级目录
         pieceEncodeFilePath = MyFileUtils.creatFolder(pieceFilePath, "pieceEncodeFile");
         ready_to_send_path = MyFileUtils.creatFolder(pieceFilePath, "ready_to_send");
 
     }
 
+    //恢复对本地数据的控制
+    public void controlLocalData() {
+        piecesEncodeFiles = MyFileUtils.getList_1_files(pieceEncodeFilePath);
+        piece_recover_file = new File(pieceFilePath + File.separator + pieceNo + ".decode");
+        ArrayList<File> files = MyFileUtils.getList_1_files(ready_to_send_path);
+        if (files.size() == 0) {
+            ready_to_send_file = null;
+        } else {
+            ready_to_send_file = files.get(0);
+        }
+        //恢复出来的文件
+        File file = new File(pieceFilePath + File.separator + pieceNo + ".decode");
+        if (file.exists()) {
+            piece_recover_file = file;
+        }
+    }
+
     //用于获取配置信息
     public PieceFile() {
 
     }
+
 
     public byte[][] getCoefMatrix() {
         return coefMatrix;
@@ -65,20 +83,13 @@ public class PieceFile {
         this.coefMatrix = coefMatrix;
     }
 
+
     public void setCoefMatrix() {
         //从文件读取系数矩阵
         coefMatrix = new byte[pieceFileNum][nK];
         coefMatrix = NCUtil.getCoefficientMatrix(piecesEncodeFiles);
     }
 
-    public File getFile_ready_to_send() {
-        return file_ready_to_send;
-    }
-
-    public void setFile_ready_to_send(File file_ready_to_send) {
-
-        this.file_ready_to_send = file_ready_to_send;
-    }
 
     public JSONObject getJson_pfile_config() {
         return json_pfile_config;
@@ -91,7 +102,7 @@ public class PieceFile {
             json_pfile_config.put("pieceNo", pieceNo);
             json_pfile_config.put("haveNeedFile", haveNeedFile);
             json_pfile_config.put("pieceFileNum", pieceFileNum);
-            json_pfile_config.put("pieceDecoded", pieceDecoded);
+
             //用以存入编码系数矩阵
             JSONArray jA_coef = new JSONArray();
             for (int i = 0; i < pieceFileNum; ++i) {
@@ -106,6 +117,10 @@ public class PieceFile {
         } catch (JSONException e) {
             e.printStackTrace();
         }
+    }
+
+    public void setJson_pfile_config(JSONObject json_pfile_config) {
+        this.json_pfile_config = json_pfile_config;
     }
 
     public String getPieceEncodeFilePath() {
@@ -141,7 +156,17 @@ public class PieceFile {
     }
 
     public ArrayList<File> getPiecesEncodeFiles() {
+        piecesEncodeFiles = MyFileUtils.getList_1_files(pieceEncodeFilePath);
         return piecesEncodeFiles;
+    }
+
+    public void setPiecesEncodeFiles(ArrayList<File> piecesEncodeFiles) {
+        this.piecesEncodeFiles = piecesEncodeFiles;
+    }
+
+    public void addToPiecesEncodeFiles(File file) {
+        piecesEncodeFiles.add(file);
+
     }
 
     public void setPiecesEncodeFiles() {
@@ -174,19 +199,20 @@ public class PieceFile {
     }
 
 
-    public boolean isPieceDecoded() {
-        return pieceDecoded;
+    public File getReady_to_send_file() {
+        return ready_to_send_file;
     }
 
-    public void setPieceDecoded(boolean pieceDecoded) {
-        this.pieceDecoded = pieceDecoded;
+    public void setReady_to_send_file(File ready_to_send_file) {
+        this.ready_to_send_file = ready_to_send_file;
     }
 
-    public String getPiece_recover_file_path() {
-        return piece_recover_file_path;
+    public File getPiece_recover_file() {
+        return piece_recover_file;
     }
 
-    public void setPiece_recover_file_path(String piece_recover_file_path) {
-        this.piece_recover_file_path = piece_recover_file_path;
+    public void setPiece_recover_file(File piece_recover_file) {
+        this.piece_recover_file = piece_recover_file;
     }
+
 }

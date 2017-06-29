@@ -70,6 +70,62 @@ public class MyFileUtils {
     }
 
     /**
+     *
+     * @param path
+     * @param fileName
+     * @param inputData
+     * @param off
+     * @param len
+     * @param append  表明是续写还是覆盖写
+     * @return
+     */
+    public static File writeToFile(String path, String fileName, byte[] inputData,int off,int len,boolean append) {
+
+        File myFile = new File(path + File.separator + fileName);
+        FileOutputStream fos = null;
+        BufferedOutputStream bos = null;
+        if (!myFile.exists()) {   //不存在则创建
+            try {
+                myFile.createNewFile();
+            } catch (IOException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        }
+
+        try {
+            //传递一个true参数，代表不覆盖已有的文件。并在已有文件的末尾处进行数据续写,false表示覆盖写
+            //FileWriter fw = new FileWriter(myFile, false);
+            //BufferedWriter bw = new BufferedWriter(fw);
+            fos = new FileOutputStream(myFile,append);
+            bos = new BufferedOutputStream(fos);
+            bos.write(inputData,off,len);
+            //bw.write("测试文本");
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (bos != null) {
+                try {
+                    bos.flush();
+                    bos.close();
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
+            }
+            if (fos != null) {
+                try {
+                    fos.close();
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
+            }
+        }
+
+        return myFile;
+    }
+
+
+    /**
      * 从路径文件中读取数据放入byte[]
      *
      * @param path
@@ -251,6 +307,28 @@ public class MyFileUtils {
         return folderList;
     }
 
+    /**
+     * 获取指定目录下文件,只找一级目录下
+     */
+    public static ArrayList<File> getList_1_files(Object obj) {
+        File directory = null;
+        if (obj instanceof File) {
+            directory = (File) obj;
+        } else {
+            directory = new File(obj.toString());
+        }
+        ArrayList<File> fileList = new ArrayList<File>();
+        if (directory.isDirectory()) {
+            File[] fileArr = directory.listFiles();
+            for (int i = 0; i < fileArr.length; ++i) {
+                File fileOne = fileArr[i];
+                if (fileOne.isFile()) {
+                    fileList.add(fileOne);
+                }
+            }
+        }
+        return fileList;
+    }
 
 
     /**
@@ -303,9 +381,10 @@ public class MyFileUtils {
      * 删除指定目录下所有文件  注意：删除文件夹时，是先删除其中所有文件，再删除文件夹
      * 不删除指定的路径
      * @param obj
+     * @param deletePath 是否删除路径（文件夹）
      * @return
      */
-    public static void deleteAllFile(Object obj) {
+    public static void deleteAllFile(Object obj,boolean deletePath) {
         File directory = null;
         if (obj instanceof File) {
             directory = (File) obj;
@@ -320,12 +399,14 @@ public class MyFileUtils {
             for (int i = 0; i < fileArr.length; i++) {
                 File fileOne = fileArr[i];
                 if (fileOne.isDirectory()) {
-                    deleteAllFile(fileOne);
+                    deleteAllFile(fileOne,false);
                 }
                 fileOne.delete();
             }
             //这句加上的话  指定路径也会被删除
-            //directory.delete();
+            if(deletePath) {
+                directory.delete();
+            }
         }
     }
 
@@ -336,13 +417,14 @@ public class MyFileUtils {
      * 合并文件
      * @param outFile 输出路径
      * @param files   需要合并的文件路径
+     *
      */
     public static final int BUFSIZE = 1024 * 8;
-    public static void mergeFiles(String outFile, String[] files) {
+    public static void mergeFiles(String outFile, File[] files) {
         FileChannel outChannel = null;
         try {
             outChannel = new FileOutputStream(outFile).getChannel();
-            for(String f : files){
+            for(File f : files){
                 FileChannel fc = new FileInputStream(f).getChannel();
                 ByteBuffer bb = ByteBuffer.allocate(BUFSIZE);
                 while(fc.read(bb) != -1){

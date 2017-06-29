@@ -34,7 +34,6 @@ public class SelectFileDialog extends Dialog {
 
 
     private String result_folder = "";
-    private String result_fileName = "";
     private ListView listView = null;
 
     public SelectFileDialog(Context context, String filePath) {
@@ -74,12 +73,11 @@ public class SelectFileDialog extends Dialog {
                 //view.setBackgroundColor( Color.parseColor("#6495ED") );
                 if (position == 0) {
                     result_folder = "";
-                    result_fileName = file_list.get(position);
                     return;
                 }
                 result_folder = folders.get(position - 1).getName();
-                String folderPath = folders.get(position - 1).getPath();
-                result_fileName = new String(MyFileUtils.readFile(folderPath, ConstantValue.FILE_NAME_TXT));
+               // String folderPath = folders.get(position - 1).getPath();
+               // result_fileName = new String(MyFileUtils.readFile(folderPath, ConstantValue.FILE_NAME_TXT));
                 //result_fileName=file_list.get(position);
             }
         });
@@ -92,9 +90,7 @@ public class SelectFileDialog extends Dialog {
         return result_folder;
     }
 
-    public String getResult_fileName() {
-        return result_fileName;
-    }
+
 
 
     @Override

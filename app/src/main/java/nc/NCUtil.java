@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 
+import utils.LocalInfor;
 import utils.MyFileUtils;
 
 
@@ -56,10 +57,10 @@ public class NCUtil {
         for (int i = 0; i < fileNum; ++i) {
             try {
                 //从文件读取nK值，在第一个字节
-                FileInputStream stream = new FileInputStream(files.get(0));
-                stream.read(b);
+                FileInputStream stream = new FileInputStream(files.get(i));
+                stream.read(b,0,1);
                 //读入一行系数矩阵
-                stream.read(CoefficientMatrix[i]);
+                stream.read(CoefficientMatrix[i],0,4);
                 stream.close();
             } catch (Exception e) {
                 e.printStackTrace();
@@ -87,8 +88,36 @@ public class NCUtil {
     }
 
 
+    /**
+     * 根据矩阵的秩判断是否有需要的数据
+     *
+     * @param RevMatrix 接收到的编码系数
+     * @param localCoef 本地编码系数
+     * @return
+     */
+    public static boolean havaUsefulData(byte[][] RevMatrix, int Row, int nK, byte[][] localCoef, int row) {
+        int rank_origin = Row;    //原有数据为行满秩矩阵
+        byte[][] test_matrix = new byte[Row + 1][nK];
 
-    public static boolean haveUse
+        for (int i = 0; i < Row; ++i) {
+            for (int j = 0; j < nK; ++j) {
+                test_matrix[i][j] = RevMatrix[i][j];
+            }
+        }
+        //按行检查数据是否使现有矩阵秩增加
+        for (int i = 0; i < row; ++i) {
+            for (int j = 0; j < nK; ++j) {
+                test_matrix[Row][j] = localCoef[i][j];
+            }
+            locked();
+            int rank = getRank(test_matrix, Row + 1, nK);
+            unlocked();
+            if (rank == (rank_origin + 1)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /**
      * 对文件进行编码
@@ -109,6 +138,8 @@ public class NCUtil {
         int piece_num = fileLen / file_piece_len + (fileLen % file_piece_len != 0 ? 1 : 0);
         encodeFile.setTotalPiecesNum(piece_num);
         encodeFile.setPiecesNum(piece_num);   //设置文件片数
+        encodeFile.setTotalSmallPieceNum(piece_num * K);
+        encodeFile.setCurrentSmallPieceNum(piece_num * K);
         byte[][] _10m_file_data = new byte[piece_num - 1][fileLen];  //每片10M的数据
         int rest_len = fileLen - file_piece_len * (piece_num - 1);  //最后一片的长度
         byte[] rest_file_data = new byte[rest_len];          //最后一片数据
@@ -147,7 +178,7 @@ public class NCUtil {
 
             if (i == (piece_num - 1)) {
                 //创建存储路径
-                PieceFile pieceFile = new PieceFile(storagePath, i+1, K);
+                PieceFile pieceFile = new PieceFile(storagePath, i + 1, K);
 
                 int perLen = rest_len / K + (rest_len % K != 0 ? 1 : 0);
                 int col = 1 + K + perLen;
@@ -166,13 +197,12 @@ public class NCUtil {
                         }
                     }
                     //此处写入文件   作为一个编码数据
-                    MyFileUtils.writeToFile(pieceFile.getPieceEncodeFilePath(), (i+1) + "_" + (m+1) + ".nc", data[m]);
+                    MyFileUtils.writeToFile(pieceFile.getPieceEncodeFilePath(), (i + 1) + "_" + (m + 1) + ".nc", data[m]);
                 }
                 pieceFile.setPieceFileNum(K);
                 pieceFile.setHaveNeedFile(true);
                 pieceFile.setPiecesEncodeFiles();
                 pieceFile.setCoefMatrix(getUnitMatrix(K));
-                pieceFile.setPieceDecoded(true);
                 re_encode_file(pieceFile);    //设置再编码文件用以发送
                 pieceFile.setJson_pfile_config();
                 //添加到总目录
@@ -180,7 +210,7 @@ public class NCUtil {
 
             } else {
                 //创建存储路径
-                PieceFile pieceFile = new PieceFile(storagePath, i+1, K);
+                PieceFile pieceFile = new PieceFile(storagePath, i + 1, K);
 
                 int perLen = file_piece_len / K + (file_piece_len % K != 0 ? 1 : 0);
                 int col = 1 + K + perLen;
@@ -200,33 +230,28 @@ public class NCUtil {
                     }
                     //此处写入文件   作为一个编码数据
 
-                    MyFileUtils.writeToFile(pieceFile.getPieceEncodeFilePath(), (i+1) + "_" + (m+1) + ".nc", data[m]);
+                    MyFileUtils.writeToFile(pieceFile.getPieceEncodeFilePath(), (i + 1) + "_" + (m + 1) + ".nc", data[m]);
                 }
                 pieceFile.setPieceFileNum(K);
                 pieceFile.setHaveNeedFile(true);
                 pieceFile.setPiecesEncodeFiles();
                 pieceFile.setCoefMatrix(getUnitMatrix(K));
-                pieceFile.setPieceDecoded(true);
                 re_encode_file(pieceFile);    //设置再编码文件用以发送
                 pieceFile.setJson_pfile_config();
-
                 //添加到总目录
                 encodeFile.add2myPiecesFiles(pieceFile);
-
             }
         }
-        encodeFile.setFileDecode(true);
         encodeFile.setHaveAllNeedFile(true);
+        //设置json变量 并将配置写入文件
         encodeFile.setJson_config();
-        //将配置写入文件
-        encodeFile.setJson_file();
 
     }
 
 
-
     /**
      * 再编码文件   只生成一个再编码文件
+     *
      * @param pieceFile
      */
     public static void re_encode_file(PieceFile pieceFile) {
@@ -261,16 +286,16 @@ public class NCUtil {
         NCUtil.locked();
         //存再编码结果
         byte[][] reEncodeData = new byte[1][fileLen];
-        reEncodeData = Reencode(fileData, 1, fileLen);
+        reEncodeData = Reencode(fileData, fileNum, fileLen,1);
         NCUtil.unlocked();
 
 
         //写入sendFilePath文件夹中
         String ready_to_send_path = pieceFile.getReady_to_send_path();
-        int pieceNo=pieceFile.getPieceNo();
-        String fileName=pieceNo+"_re.nc";
-        File file=MyFileUtils.writeToFile(ready_to_send_path,fileName,reEncodeData[0]);
-        pieceFile.setFile_ready_to_send(file);
+        int pieceNo = pieceFile.getPieceNo();
+        String fileName = pieceNo + "." + LocalInfor.getCurrentTime("MMddHHmmss") + ".nc"; //pieceNo.time.re  //格式
+        File file = MyFileUtils.writeToFile(ready_to_send_path, fileName, reEncodeData[0]);
+        pieceFile.setReady_to_send_file(file);
 
     }
 
@@ -328,8 +353,9 @@ public class NCUtil {
             }
         }
 
-        MyFileUtils.writeToFile(pieceFile.getPieceFilePath(), pieceFile.getPieceNo()+".decode", originData);
-        pieceFile.setPieceDecoded(true);   //标识已经解码
+        //写入
+        File file = MyFileUtils.writeToFile(pieceFile.getPieceFilePath(), pieceFile.getPieceNo() + ".decode", originData);
+        pieceFile.setPiece_recover_file(file);
     }
 
     /**
@@ -355,7 +381,7 @@ public class NCUtil {
     public static native byte[][] Encode(byte[] buffer_, int N, int K, int nLen);
 
     //再编码函数,nLength为编码文件的总长（1+K+len)
-    public static native byte[][] Reencode(byte[][] buffer, int nPart, int nLength);
+    public static native byte[][] Reencode(byte[][] buffer, int nPart, int nLength,int outputNum);
 
     //解码函数
     public static native byte[][] Decode(byte[][] buffer, int nPart, int nLength);

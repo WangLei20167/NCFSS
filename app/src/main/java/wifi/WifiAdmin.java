@@ -31,16 +31,33 @@ public class WifiAdmin {
     private Handler handler;  //让调用处处理msg
 
     private Context context;
+    private boolean wifiState = false;
 
     // 构造器
-    public WifiAdmin(Context context,Handler handler) {
-        this.context=context;
-        this.handler=handler;
+    public WifiAdmin(Context context, Handler handler) {
+        this.context = context;
+        this.handler = handler;
         // 取得WifiManager对象
         mWifiManager = (WifiManager) context
                 .getSystemService(Context.WIFI_SERVICE);
         // 取得WifiInfo对象
         mWifiInfo = mWifiManager.getConnectionInfo();
+        setWifiState();
+    }
+
+    public boolean isWifiState() {
+        return wifiState;
+    }
+
+    public void setWifiState() {
+        this.wifiState = mWifiManager.isWifiEnabled();
+    }
+
+    //恢复app打开之前的WiFi状态
+    public void resetWifi() {
+        if (mWifiManager.isWifiEnabled() != wifiState) {
+            mWifiManager.setWifiEnabled(wifiState);
+        }
     }
 
     // 打开WIFI
@@ -49,7 +66,7 @@ public class WifiAdmin {
             mWifiManager.setWifiEnabled(true);
         }
         //等待开启成功再返回
-        while(!mWifiManager.isWifiEnabled()){
+        while (!mWifiManager.isWifiEnabled()) {
 
         }
     }
@@ -61,7 +78,7 @@ public class WifiAdmin {
         }
 
         //等待关闭后再返回
-        while(mWifiManager.isWifiEnabled()){
+        while (mWifiManager.isWifiEnabled()) {
 
         }
     }
@@ -143,7 +160,7 @@ public class WifiAdmin {
     }
 
     //得到接入点的SSID
-    public String getSSID(){
+    public String getSSID() {
         return (mWifiInfo == null) ? "NULL" : mWifiInfo.getSSID();
     }
 
@@ -165,7 +182,7 @@ public class WifiAdmin {
     // 添加一个网络并连接
     public void addNetwork(WifiConfiguration wcg) {
         int wcgID = mWifiManager.addNetwork(wcg);
-        boolean b =  mWifiManager.enableNetwork(wcgID, true);
+        boolean b = mWifiManager.enableNetwork(wcgID, true);
         System.out.println("a--" + wcgID);
         System.out.println("b--" + b);
     }
@@ -178,8 +195,7 @@ public class WifiAdmin {
 
 //然后是一个实际应用方法，只验证过没有密码的情况：
 
-    public WifiConfiguration CreateWifiInfo(String bssid,String SSID, String Password, int Type)
-    {
+    public WifiConfiguration CreateWifiInfo(String bssid, String SSID, String Password, int Type) {
         WifiConfiguration config = new WifiConfiguration();
         config.allowedAuthAlgorithms.clear();
         config.allowedGroupCiphers.clear();
@@ -192,20 +208,20 @@ public class WifiAdmin {
         //config.BSSID="\"" + bssid + "\"";
 
         WifiConfiguration tempConfig = this.IsExsits(SSID);
-        if(tempConfig != null) {
+        if (tempConfig != null) {
             mWifiManager.removeNetwork(tempConfig.networkId);
         }
 
-        if(Type == 1) //WIFICIPHER_NOPASS
+        if (Type == 1) //WIFICIPHER_NOPASS
         {
             config.wepKeys[0] = "";
             config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
             config.wepTxKeyIndex = 0;
         }
-        if(Type == 2) //WIFICIPHER_WEP
+        if (Type == 2) //WIFICIPHER_WEP
         {
             config.hiddenSSID = true;
-            config.wepKeys[0]= "\""+Password+"\"";
+            config.wepKeys[0] = "\"" + Password + "\"";
             config.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.SHARED);
             config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP);
             config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP);
@@ -214,9 +230,9 @@ public class WifiAdmin {
             config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
             config.wepTxKeyIndex = 0;
         }
-        if(Type == 3) //WIFICIPHER_WPA
+        if (Type == 3) //WIFICIPHER_WPA
         {
-            config.preSharedKey = "\""+Password+"\"";
+            config.preSharedKey = "\"" + Password + "\"";
             config.hiddenSSID = true;
             config.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.OPEN);
             config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP);
@@ -230,20 +246,17 @@ public class WifiAdmin {
         return config;
     }
 
-    private WifiConfiguration IsExsits(String SSID)
-    {
+    private WifiConfiguration IsExsits(String SSID) {
         try {
             List<WifiConfiguration> existingConfigs = mWifiManager.getConfiguredNetworks();
-            for (WifiConfiguration existingConfig : existingConfigs)
-            {
-                if (existingConfig.SSID.equals("\""+SSID+"\""))
-                {
+            for (WifiConfiguration existingConfig : existingConfigs) {
+                if (existingConfig.SSID.equals("\"" + SSID + "\"")) {
                     return existingConfig;
                 }
             }
         } catch (Exception e) {
             e.printStackTrace();
-        }finally {
+        } finally {
             return null;
         }
     }
@@ -255,7 +268,7 @@ public class WifiAdmin {
     }
 
     //搜索是否存在指定ssid的网络，存在返回对应的bssid
-    public String searchWifi(String ssid){
+    public String searchWifi(String ssid) {
         String bssid = "";   //相同ssid按bssid来识别
         int wifi_level = Integer.MIN_VALUE;
         boolean have_want_ssid = false;   //查看周围是否有指定ssid的网络
@@ -266,7 +279,7 @@ public class WifiAdmin {
             //得到扫描结果
             List<ScanResult> mWifiList = mWifiManager.getScanResults();
             for (int i = 0; i < mWifiList.size(); ++i) {
-                String s=mWifiList.get(i).SSID;
+                String s = mWifiList.get(i).SSID;
                 //检查有没有ssid包含HHKC的WiFi   .indexOf(Constant.HOST_SPOT_SSID)==0
                 if (mWifiList.get(i).SSID.equals(ssid)) {
                     have_want_ssid = true;
@@ -275,13 +288,13 @@ public class WifiAdmin {
                     if (_level > wifi_level) {
                         // bssid = mWifiList.get(i).BSSID;
                         //找到信号最强的
-                        bssid=mWifiList.get(i).BSSID;
+                        bssid = mWifiList.get(i).BSSID;
                         wifi_level = _level;
                     }
                     //break;
                 }
             }
-            if(!have_want_ssid){
+            if (!have_want_ssid) {
                 try {
                     Thread.sleep(100);
                 } catch (InterruptedException e) {
@@ -289,7 +302,7 @@ public class WifiAdmin {
                 }
             }
 
-        } while (!have_want_ssid&&mWifiManager.isWifiEnabled());
+        } while (!have_want_ssid && mWifiManager.isWifiEnabled());
 
 
         return bssid;
@@ -304,7 +317,6 @@ public class WifiAdmin {
         }
         return false;
     }
-
 
 
 }

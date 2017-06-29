@@ -33,6 +33,10 @@ import com.nononsenseapps.filepicker.FilePickerActivity;
 import com.nononsenseapps.filepicker.Utils;
 import com.skyfishjy.library.RippleBackground;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -46,6 +50,7 @@ import nc.ConstantValue;
 import nc.EncodeFile;
 import nc.MyEncodeFile;
 import nc.NCUtil;
+import nc.PieceFile;
 import utils.LocalInfor;
 import utils.MyFileUtils;
 import utils.SelectFileDialog;
@@ -98,6 +103,8 @@ public class MainActivity extends AppCompatActivity
     private long mExitTime;
     //文件名
     public TextView tv_fileName;
+    //文件个数
+    public TextView tv_cur_total_num;
     //按钮变量
     public Button bt_buildConnect;
     public Button bt_joinConnect;
@@ -135,10 +142,13 @@ public class MainActivity extends AppCompatActivity
     private int K = 4;
     private int SFN = 4;  //send file num
     //private ArrayList<MyEncodeFile> myEncodeFiles=new ArrayList<MyEncodeFile>();
-    private MyEncodeFile myEncodeFile = null;
+    // private MyEncodeFile myEncodeFile = null;
     //用以管理编码文件
-    private EncodeFile mEncodeFile=null;
+    private EncodeFile myEncodeFile = null;
 
+    //用以管理所有编码文件的配置信息
+    private JSONArray json_all_file_config = new JSONArray();
+    private ArrayList<EncodeFile> myEncodeFiles = new ArrayList<EncodeFile>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -165,12 +175,9 @@ public class MainActivity extends AppCompatActivity
         myTempPath = MyFileUtils.creatFolder(myFolderPath, ConstantValue.TEMP);
         myFileRevPath = MyFileUtils.creatFolder(myFolderPath, ConstantValue.FILE_REV);
 
+
         //用以打开热点,如果ap已经打开则先关闭
         mAPHelper = new APHelper(MainActivity.this);
-//        if (mAPHelper.isApEnabled()) {
-//            mAPHelper.setWifiApEnabled(null, false);
-//        }
-        //用以处理SocketServer
         mTCPServer = new TCPServer(MainActivity.this, myTempPath, myFileRevPath, handler);
         //用以连接Server Socket
         mTcpClient = new TCPClient(MainActivity.this, myTempPath, myFileRevPath, handler);
@@ -178,6 +185,7 @@ public class MainActivity extends AppCompatActivity
         mWifiAdmin = new WifiAdmin(MainActivity.this, handler);
 
 
+        controlLocalData();
         byte[] bt_startPath = MyFileUtils.readFile(myFolderPath, ConstantValue.START_SELECT_PATH);
         if (bt_startPath == null) {
             startPath = "";
@@ -187,6 +195,7 @@ public class MainActivity extends AppCompatActivity
 
 
         tv_fileName = (TextView) findViewById(R.id.textView_fileName);
+        tv_cur_total_num = (TextView) findViewById(R.id.textView_cur_total);
 
         //等待效果
         //progressBar = (ProgressBar) findViewById(R.id.progressBar);
@@ -194,6 +203,11 @@ public class MainActivity extends AppCompatActivity
         bt_buildConnect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                if (mTCPServer.getLocalData() == null) {
+                    bt_shareFile.performClick();
+                    SendMessage(MsgValue.TELL_ME_SOME_INFOR, 0, 0, "待发送文件为空");
+                    return;
+                }
                 //如果已作为client连接到了socket  则先断开
                 if (server_client.equals(Constant.isClient) && mTcpClient.getSocket_flag()) {
                     //断开
@@ -222,22 +236,14 @@ public class MainActivity extends AppCompatActivity
                                     mTCPServer.StartServer();
                                     OpenSocketServerPort = true;
                                 }
-
-                                Message APOpenSuccess = new Message();
-                                APOpenSuccess.what = MsgValue.APOPENSUCCESS;
-                                handler.sendMessage(APOpenSuccess);
-                                //Toast.makeText(MainActivity.this, "热点开启", Toast.LENGTH_SHORT).show();
+                                SendMessage(MsgValue.TELL_ME_SOME_INFOR,0,0,"热点开启成功");
                             } else {
                                 //失败
-                                Message APOpenFailed = new Message();
-                                APOpenFailed.what = MsgValue.APOPENFAILED;
-                                handler.sendMessage(APOpenFailed);
-                                // Toast.makeText(MainActivity.this, "打开热点失败", Toast.LENGTH_SHORT).show();
+                                SendMessage(MsgValue.TELL_ME_SOME_INFOR,0,0,"热点开启失败");
                             }
                         } else {
                             //
                         }
-
                         // String s= LocalInfor.getHostIP();
                     }
                 }).start();
@@ -249,7 +255,6 @@ public class MainActivity extends AppCompatActivity
         bt_joinConnect.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-
                 //连接WiFi    所有操作封装到一起
                 search_connect_wifi();
 
@@ -263,14 +268,13 @@ public class MainActivity extends AppCompatActivity
             public void onClick(View view) {
                 //测试水波纹
                 //  rippleBackground.startRippleAnimation();
-//                ArrayList<File> folders = MyFileUtils.getListFolders(myTempPath);
-//                if (folders.size() == 0) {
-//                    openSelectFile();
-//                } else {
-//                    showSelectFileDialog();
-//                }
-                openSelectFile();
-               //EncodeFile encodeFile=EncodeFile.parse_JSON_File(myTempPath+File.separator+"file"+File.separator+"json.txt");
+                ArrayList<File> folders = MyFileUtils.getListFolders(myTempPath);
+                if (folders.size() == 0) {
+                    openSelectFile();
+                } else {
+                    showSelectFileDialog();
+                }
+
             }
         });
 
@@ -278,6 +282,30 @@ public class MainActivity extends AppCompatActivity
         //刚开始就处于搜索状态
         //连接WiFi    所有操作封装到一起
         search_connect_wifi();
+
+    }
+
+    public void controlLocalData() {
+
+        ArrayList<File> folders = MyFileUtils.getListFolders(myTempPath);
+        int size = folders.size();
+        for (int i = 0; i < size; ++i) {
+            File folder=folders.get(i);
+            String json_file_path=folder.getPath() + File.separator + "json.txt";
+            File file = new File(json_file_path);
+            if(!file.exists()){
+                SendMessage(MsgValue.TELL_ME_SOME_INFOR,0,0,json_file_path+"文件损坏");
+                //删除损坏的文件
+                MyFileUtils.deleteAllFile(folder.getPath(),true);
+                continue;
+            }
+            EncodeFile encodeFile = EncodeFile.parse_JSON_File(file);
+            if (encodeFile == null) {
+                continue;
+            }
+            encodeFile.getLocalData();
+            myEncodeFiles.add(encodeFile);
+        }
 
     }
 
@@ -318,169 +346,39 @@ public class MainActivity extends AppCompatActivity
                 File file = Utils.getFileForUri(uri);
                 fileList.add(file);
             }
-
-
-//            //用来更改文件选择器的开始地址
-//            for (Uri uri : files) {
-//                File file = Utils.getFileForUri(uri);
-//                String s = file.getParent();
-//                //如果有改变则写入新的
-//                if (!s.equals(startPath)) {
-//                    MyFileUtils.writeToFile(myFolderPath, "fpStartPath.txt", s.getBytes());
-//                }
-//                startPath = s;
-//                //结束循环
-//                break;
-//                // Do something with the result...
-//            }
-            //注：单选情况下
             final File file = fileList.get(0);
-
             String s = file.getParent();
             //如果有改变则写入新的
             if (!s.equals(startPath)) {
                 MyFileUtils.writeToFile(myFolderPath, ConstantValue.START_SELECT_PATH, s.getBytes());
             }
             startPath = s;
-            String fileName = file.getName();
+            final String fileName = file.getName();
             tv_fileName.setText("文件名：" + fileName);
-            mEncodeFile=new EncodeFile(myTempPath,fileName,K);
-            //myEncodeFile = new MyEncodeFile(myTempPath, fileName, true, "");
-
+            final EncodeFile encodeFile = new EncodeFile(myTempPath, fileName, K);
+            //encodeFile.setOriginFilePath(file.getPath());
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    //在这里唤醒编码
-//                    while (mEncodeFile == null) {
-//                        try {
-//                            Thread.sleep(100);
-//                        } catch (InterruptedException e) {
-//                            e.printStackTrace();
-//                        }
-//                    }
-                   NCUtil.encode_file(file,mEncodeFile);
+
+                    NCUtil.encode_file(file, encodeFile);
                     //再编码
-                  //  re_encode_file();
-                    //发送给所有的IP
-                    mTCPServer.SendFile("", myEncodeFile, SFN);
-                    //File file = decode_file(path);
+//                    for (PieceFile pieceFile : encodeFile.getMyPiecesFiles()) {
+//                        NCUtil.re_encode_file(pieceFile);
+//                    }
+                    myEncodeFiles.add(encodeFile);
+                    mTCPServer.setLocalData(encodeFile);
+                    SendMessage(MsgValue.TELL_ME_SOME_INFOR, 0, 0, fileName + "编码完成");
+                    int curNum = encodeFile.getCurrentSmallPieceNum();
+                    int totalNum = encodeFile.getTotalSmallPieceNum();
+                    SendMessage(MsgValue.SET_CUR_TOTAL_TV, curNum, totalNum, null);
                 }
             }).start();
 
-            // sendFiles(fileList);
-
         }
 
     }
 
-
-
-
-
-
-
-    /**
-     * 解码数据
-     *
-     * @param encodeFilePath
-     * @return
-     */
-    public File decode_file(String encodeFilePath) {
-        ArrayList<File> files = MyFileUtils.getListFiles(encodeFilePath);
-        int fileNum = files.size();
-        if (fileNum == 0) {
-            //没有文件
-            return null;
-        }
-        int nK = 0;
-        try {
-            //从文件读取nK值，在第一个字节
-            FileInputStream stream = new FileInputStream(files.get(0));
-            byte[] b = new byte[1];
-            stream.read(b,0,1);
-            nK = (int) b[0];
-            stream.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        if (fileNum < nK) {
-            //用于解码的文件数目不够
-            return null;
-        }
-
-        int fileLen = (int) (files.get(0).length());  //注意：用于再编码的文件长度必定都是一样的
-        //用于存文件数组
-        byte[][] fileData = new byte[nK][fileLen];   //如果文件很多，也只需nK个文件
-
-        for (int i = 0; i < nK; ++i) {
-            File file = files.get(i);
-            try {
-                InputStream in = new FileInputStream(file);
-                //b = new byte[fileLen];
-                in.read(fileData[i]);    //读取文件中的内容到b[]数组
-                in.close();
-            } catch (IOException e) {
-                //Toast.makeText(this, "读取文件异常", Toast.LENGTH_SHORT).show();
-                e.printStackTrace();
-                return null;
-            }
-
-        }
-
-        NCUtil.locked();
-        //存再编码结果
-        int col = fileLen - 1 - nK;
-        byte[][] origin_data = new byte[nK][col];
-        origin_data = NCUtil.Decode(fileData, nK, fileLen);
-        NCUtil.unlocked();
-
-
-        //二维转化为一维
-        int origin_file_len = nK * col;
-        byte[] originData = new byte[origin_file_len];
-        int ii = 0;
-        for (int i = 0; i < nK; ++i) {
-            for (int j = 0; j < col; ++j) {
-                originData[ii] = origin_data[i][j];
-                ++ii;
-            }
-        }
-        String encodeFileName = files.get(0).getName();      //"0_" + (i+1) + "_re_" + fileName + ".nc";   //0代表再编码的次数  文件名格式
-        String origin_file_name = encodeFileName.substring(encodeFileName.indexOf("e") + 2, encodeFileName.lastIndexOf("."));
-        MyFileUtils.writeToFile(myTempPath, origin_file_name, originData);
-
-        Message decode_finish = new Message();
-        decode_finish.what = MsgValue.TELL_ME_SOME_INFOR;
-        decode_finish.obj = origin_file_name + "解码完毕";
-        handler.sendMessage(decode_finish);
-
-        File file = new File(myTempPath + File.separator + origin_file_name);
-        return file;
-
-    }
-
-
-    /**
-     * 发送文件
-     *
-     * @param fileList
-     */
-    public void sendFiles(final ArrayList<File> fileList) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                if (server_client.equals(Constant.isServer)) {
-                    mTCPServer.SendFile(fileList);
-                } else if (server_client.equals(Constant.isClient)) {
-                    mTcpClient.sendFile(fileList);
-                } else {
-                    return;
-                }
-
-            }
-        }).start();
-    }
 
     //连接ServerSocket
     public void search_connect_wifi() {
@@ -553,15 +451,13 @@ public class MainActivity extends AppCompatActivity
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
-
-                case MsgValue.APOPENSUCCESS:
-                    Toast.makeText(MainActivity.this, "热点开启", Toast.LENGTH_SHORT).show();
-                    break;
-                case MsgValue.APOPENFAILED:
-                    Toast.makeText(MainActivity.this, "打开热点失败", Toast.LENGTH_SHORT).show();
-                    break;
                 case MsgValue.TELL_ME_SOME_INFOR:
                     Toast.makeText(MainActivity.this, msg.obj.toString(), Toast.LENGTH_SHORT).show();
+                    break;
+                case MsgValue.SET_CUR_TOTAL_TV:
+                    int curNum = msg.arg1;
+                    int totalNum = msg.arg2;
+                    tv_cur_total_num.setText("已有/共需文件片数：" + curNum + "/" + totalNum);
                     break;
 
                 //处理 TCPClient的信息
@@ -569,59 +465,20 @@ public class MainActivity extends AppCompatActivity
                     //连接成功或失败
                     Toast.makeText(MainActivity.this, msg.obj.toString(), Toast.LENGTH_SHORT).show();
                     break;
-                case MsgValue.SP_NAME:
-                    //接收父手机名字
-                    String sp_name = msg.obj.toString();
-                    Toast.makeText(MainActivity.this, "已连接到" + msg.obj.toString(), Toast.LENGTH_SHORT).show();
-                    break;
+
                 case MsgValue.SET_SERVER_CIRPRO:
                     //显示server的圆形进度球
                     String serverPhoneName = msg.obj.toString();
+                    Toast.makeText(MainActivity.this, "已连接到" + serverPhoneName, Toast.LENGTH_SHORT).show();
                     addCirclePro(cirPro_server, tv_serverPhoneName, serverPhoneName);
+                    tv_fileName.setText("文件名：" + "Never Say Never.mp4");
+                    cirPro_client.setProgress(3/16);
+                    tv_cur_total_num.setText("已有/共需文件片数：" + 2 + "/" + 16);
+                    break;
+                //接收到配置文件
+                case MsgValue.C_PARSE_JSON_FILR:
                     break;
                 case MsgValue.C_CREATE_ENCODE_FILE_FOLDER:
-                    //创建接收目录
-                    int haveAllNeedFile = msg.arg1;  //得到是否需要文件标志0 1
-                    String folderName = "";
-                    String file_name = "";
-                    String[] split0 = msg.obj.toString().split("#");
-                    int flag0 = 1;
-                    for (String val : split0) {
-                        if (flag0 == 1) {
-                            folderName = val;
-                            ++flag0;
-                        } else if (flag0 == 2) {
-                            file_name = val;
-                            ++flag0;
-                        }
-                    }
-
-                    if (haveAllNeedFile == 0) {
-                        ArrayList<File> folders = MyFileUtils.getListFolders(myTempPath);
-                        for (File folder : folders) {
-                            if (folder.getName().equals(folderName)) {
-                                if (myEncodeFile == null || (myEncodeFile.getFileFolderName() != folderName)) {
-                                    tv_fileName.setText("文件名：" + file_name);
-
-                                    myEncodeFile = new MyEncodeFile(myTempPath, file_name, false, folderName);//folderName一直不能为""
-
-                                    //发送给服务器端
-                                    new Thread(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            mTcpClient.SendFile(myEncodeFile, SFN);
-                                        }
-                                    }).start();
-                                }
-                            }
-                        }
-                    }
-
-                    if (myEncodeFile == null || (myEncodeFile.getFileFolderName() != folderName)) {
-                        tv_fileName.setText("文件名：" + file_name);
-
-                        myEncodeFile = new MyEncodeFile(myTempPath, file_name, true, folderName);//folderName一直不能为""
-                    }
                     break;
                 case MsgValue.SET_REV_PROGRESS:
                     //显示接收进度
@@ -652,29 +509,6 @@ public class MainActivity extends AppCompatActivity
                 case MsgValue.C_REV_ALL_FINISH:
                     //接收数据完毕，尝试解码
                     String _folder_name = msg.obj.toString();
-                    if (myEncodeFile.getFileFolderName().equals(_folder_name)) {
-                        if (myEncodeFile.getFileNum() >= myEncodeFile.getNeedFileNum()) {
-                            //执行解码
-                            new Thread(new Runnable() {
-                                @Override
-                                public void run() {
-                                    decode_file(myEncodeFile.getEncodeFilePath());
-                                }
-                            }).start();
-                            //Toast.makeText(MainActivity.this, myEncodeFile.getFileName() + "解码完成", Toast.LENGTH_SHORT).show();
-                        }
-                    }
-                    if (myEncodeFile.getFileNum() != myEncodeFile.getRecode_file_num()) {
-                        //再编码
-                        new Thread(new Runnable() {
-                            @Override
-                            public void run() {
-                                //re_encode_file();
-                            }
-                        }).start();
-
-                    }
-
                     break;
 
 
@@ -697,18 +531,18 @@ public class MainActivity extends AppCompatActivity
                     }
                     //设置进度球
                     setClientProgress(cp_name, cp_ip);
-
+                    setMyClientProgressNum(cp_ip, 100);
                     //向连接上的客户端发送FileRev中的所有文件
                     final String _cp_ip = cp_ip;
-                    new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-                            //  mTCPServer.SendFile(_cp_ip, myFileRevPath);
-                            if (myEncodeFile != null) {
-                                mTCPServer.SendFile(_cp_ip, myEncodeFile, SFN);
-                            }
-                        }
-                    }).start();
+//                    new Thread(new Runnable() {
+//                        @Override
+//                        public void run() {
+//                            //  mTCPServer.SendFile(_cp_ip, myFileRevPath);
+//                            if (myEncodeFile != null) {
+//                                mTCPServer.SendFile(_cp_ip, myEncodeFile, SFN);
+//                            }
+//                        }
+//                    }).start();
 
                     Toast.makeText(MainActivity.this, cp_name + "已连接", Toast.LENGTH_SHORT).show();
                     break;
@@ -750,28 +584,6 @@ public class MainActivity extends AppCompatActivity
                 case MsgValue.S_SOCET_END_FLAG:
                     String socket_ip = msg.obj.toString();
 
-                    //尝试解码
-                    if (myEncodeFile.getFileNum() >= myEncodeFile.getNeedFileNum()) {
-                        //执行解码
-                        new Thread(new Runnable() {
-                            @Override
-                            public void run() {
-                                decode_file(myEncodeFile.getEncodeFilePath());
-                            }
-                        }).start();
-                        //Toast.makeText(MainActivity.this, myEncodeFile.getFileName() + "解码完成", Toast.LENGTH_SHORT).show();
-                    }
-
-                    if (myEncodeFile.getFileNum() != myEncodeFile.getRecode_file_num()) {
-                        //再编码
-                        new Thread(new Runnable() {
-                            @Override
-                            public void run() {
-                                //re_encode_file();
-                            }
-                        }).start();
-
-                    }
                     clearClientProgress(socket_ip);
                     break;
 
@@ -821,8 +633,7 @@ public class MainActivity extends AppCompatActivity
                     mTCPServer.CloseServer();
                     mTCPServer.stopListening();
                 }
-
-
+                mWifiAdmin.resetWifi();
                 //将文件选择器的开始目录写入文件
                 MyFileUtils.writeToFile(myFolderPath, ConstantValue.START_SELECT_PATH, startPath.getBytes());
                 //执行退出操作,并释放资源
@@ -980,35 +791,26 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void onClick(View v) {
                 String folderName = selectFileDialog.getResult_folder();
-                String fileName = selectFileDialog.getResult_fileName();
-                if (folderName.equals("") && fileName.equals("")) {
-                    selectFileDialog.dismiss();
-                    return;
-                }
-                if (fileName.equals(ConstantValue.RE_SELECT_FLAG)) {
+
+                if (folderName.equals("")) {
                     selectFileDialog.dismiss();
                     openSelectFile();
-
                 } else {
                     selectFileDialog.dismiss();
-                    if (myEncodeFile != null && myEncodeFile.getFileFolderName().equals(folderName)) {
-
-                    } else {
-                        myEncodeFile = new MyEncodeFile(myTempPath, fileName, false, folderName);
-                    }
-                    tv_fileName.setText("文件名：" + fileName);
-
-                    //发送给所有的IP
-                    new Thread(new Runnable() {
-                        @Override
-                        public void run() {
-                            mTCPServer.SendFile("", myEncodeFile, SFN);
+                    for (EncodeFile encodeFile : myEncodeFiles) {
+                        if (encodeFile.getFolderName().equals(folderName)) {
+                            myEncodeFile = encodeFile;
+                            break;
                         }
-                    }).start();
-
+                    }
+                    mTCPServer.setLocalData(myEncodeFile);
+                    String fileName = myEncodeFile.getFileName();
+                    tv_fileName.setText("文件名：" + fileName);
+                    //设置文件数目信息
+                    int curNum = myEncodeFile.getCurrentSmallPieceNum();
+                    int totalNum = myEncodeFile.getTotalSmallPieceNum();
+                    SendMessage(MsgValue.SET_CUR_TOTAL_TV, curNum, totalNum, null);
                 }
-
-
             }
         });
         selectFileDialog.setOnNegativeListener(new View.OnClickListener() {
@@ -1271,6 +1073,12 @@ public class MainActivity extends AppCompatActivity
     public void deleteCirPro(CircleProgress circleProgress, TextView tv) {
         circleProgress.setVisibility(View.GONE);
         tv.setVisibility(View.GONE);
+    }
+
+    void SendMessage(int what, int arg1, int arg2, Object obj) {
+        if (handler != null) {
+            Message.obtain(handler, what, arg1, arg2, obj).sendToTarget();
+        }
     }
 
 
