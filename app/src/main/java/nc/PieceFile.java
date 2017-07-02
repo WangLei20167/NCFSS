@@ -37,6 +37,7 @@ public class PieceFile {
     private ArrayList<File> piecesEncodeFiles = new ArrayList<File>();
     private File ready_to_send_file = null;
 
+    private boolean send_or_no=false;
 
     //初次编码时存数据调用
     public PieceFile(String path, int pieceNo, int nK) {
@@ -57,7 +58,7 @@ public class PieceFile {
         piece_recover_file = new File(pieceFilePath + File.separator + pieceNo + ".decode");
         ArrayList<File> files = MyFileUtils.getList_1_files(ready_to_send_path);
         if (files.size() == 0) {
-            ready_to_send_file = null;
+            NCUtil.re_encode_file(this);
         } else {
             ready_to_send_file = files.get(0);
         }
@@ -205,6 +206,14 @@ public class PieceFile {
 
     public void setReady_to_send_file(File ready_to_send_file) {
         this.ready_to_send_file = ready_to_send_file;
+    }
+
+    public boolean isSend_or_no() {
+        return send_or_no;
+    }
+
+    public void setSend_or_no(boolean send_or_no) {
+        this.send_or_no = send_or_no;
     }
 
     public File getPiece_recover_file() {

@@ -257,6 +257,7 @@ public class MainActivity extends AppCompatActivity
             public void onClick(View view) {
                 //连接WiFi    所有操作封装到一起
                 search_connect_wifi();
+               // myEncodeFile.try2decode();
 
             }
         });
@@ -285,27 +286,35 @@ public class MainActivity extends AppCompatActivity
 
     }
 
+    /**
+     * 恢复对本地数据的控制
+     */
     public void controlLocalData() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                ArrayList<File> folders = MyFileUtils.getListFolders(myTempPath);
+                int size = folders.size();
+                for (int i = 0; i < size; ++i) {
+                    File folder=folders.get(i);
+                    String json_file_path=folder.getPath() + File.separator + "json.txt";
+                    File file = new File(json_file_path);
+                    if(!file.exists()){
+                        SendMessage(MsgValue.TELL_ME_SOME_INFOR,0,0,json_file_path+"文件损坏");
+                        //删除损坏的文件
+                        MyFileUtils.deleteAllFile(folder.getPath(),true);
+                        continue;
+                    }
+                    EncodeFile encodeFile = EncodeFile.parse_JSON_File(file);
+                    if (encodeFile == null) {
+                        continue;
+                    }
+                    encodeFile.getLocalData();
+                    myEncodeFiles.add(encodeFile);
+                }
 
-        ArrayList<File> folders = MyFileUtils.getListFolders(myTempPath);
-        int size = folders.size();
-        for (int i = 0; i < size; ++i) {
-            File folder=folders.get(i);
-            String json_file_path=folder.getPath() + File.separator + "json.txt";
-            File file = new File(json_file_path);
-            if(!file.exists()){
-                SendMessage(MsgValue.TELL_ME_SOME_INFOR,0,0,json_file_path+"文件损坏");
-                //删除损坏的文件
-                MyFileUtils.deleteAllFile(folder.getPath(),true);
-                continue;
             }
-            EncodeFile encodeFile = EncodeFile.parse_JSON_File(file);
-            if (encodeFile == null) {
-                continue;
-            }
-            encodeFile.getLocalData();
-            myEncodeFiles.add(encodeFile);
-        }
+        }).start();
 
     }
 
@@ -471,9 +480,9 @@ public class MainActivity extends AppCompatActivity
                     String serverPhoneName = msg.obj.toString();
                     Toast.makeText(MainActivity.this, "已连接到" + serverPhoneName, Toast.LENGTH_SHORT).show();
                     addCirclePro(cirPro_server, tv_serverPhoneName, serverPhoneName);
-                    tv_fileName.setText("文件名：" + "Never Say Never.mp4");
-                    cirPro_client.setProgress(3/16);
-                    tv_cur_total_num.setText("已有/共需文件片数：" + 2 + "/" + 16);
+//                    tv_fileName.setText("文件名：" + "Never Say Never.mp4");
+//                    cirPro_client.setProgress((int)((3.0/16)*100));
+//                    tv_cur_total_num.setText("已有/共需文件片数：" + 3 + "/" + 16);
                     break;
                 //接收到配置文件
                 case MsgValue.C_PARSE_JSON_FILR:
@@ -531,7 +540,7 @@ public class MainActivity extends AppCompatActivity
                     }
                     //设置进度球
                     setClientProgress(cp_name, cp_ip);
-                    setMyClientProgressNum(cp_ip, 100);
+                    //circleProgress0.setProgress(100);
                     //向连接上的客户端发送FileRev中的所有文件
                     final String _cp_ip = cp_ip;
 //                    new Thread(new Runnable() {

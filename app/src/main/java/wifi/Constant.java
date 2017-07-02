@@ -19,7 +19,7 @@ public class Constant {
     public final static String isServer = "isServer";
     public final static String isClient = "isClient";
 
-    public final static int BUFFER_SIZE = 1 * 1024 * 1024; //设置缓存区为1M
+    public final static int BUFFER_SIZE = 1024; //设置缓存区为1K
 
     //约定的指令编号 instruction
     public final static int PHONE_NAME = 0;

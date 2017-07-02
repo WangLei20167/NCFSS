@@ -25,6 +25,7 @@ public class EncodeFile {
     private String FolderName;
 
     private String FolderPath;
+    private String dataTempPath;    //用来暂存编码时的数据，防止大内存申请失败的问题
     private int totalSmallPieceNum = 0;
     private int currentSmallPieceNum = 0;
     private ArrayList<PieceFile> myPiecesFiles = new ArrayList<PieceFile>();   //需注意初始化问题
@@ -40,6 +41,7 @@ public class EncodeFile {
         this.nK = nK;
         FolderName = fileName.substring(0, fileName.lastIndexOf("."));   //获取不含后缀的文件名,作为文件夹名字
         FolderPath = MyFileUtils.creatFolder(path, FolderName);
+        dataTempPath = MyFileUtils.creatFolder(FolderPath, "dataTemp");
         originFilePath = FolderPath + File.separator + fileName;
     }
 
@@ -51,11 +53,24 @@ public class EncodeFile {
     //恢复控制本地数据
     public void getLocalData() {
         originFilePath = FolderPath + File.separator + fileName;
+        dataTempPath = FolderPath + File.separator + "dataTemp";
         for (PieceFile pieceFile : myPiecesFiles) {
             pieceFile.controlLocalData();
         }
     }
 
+
+    /**
+     * 再编码文件
+     */
+    public void reEncodeFile() {
+        for (PieceFile pieceFile : myPiecesFiles) {
+            if(pieceFile.isSend_or_no()){
+                NCUtil.re_encode_file(pieceFile);
+                pieceFile.setSend_or_no(false);
+            }
+        }
+    }
 
     /**
      * 尝试解码文件
@@ -65,11 +80,14 @@ public class EncodeFile {
         if (piecesNum < totalPiecesNum) {
             return false;
         }
+        if (currentSmallPieceNum < totalSmallPieceNum) {
+            return false;
+        }
         File[] partFiles = new File[totalPiecesNum];
         for (PieceFile pieceFile : myPiecesFiles) {
             int pieceNo = pieceFile.getPieceNo();
             if (pieceFile.getPiece_recover_file().exists()) {
-                partFiles[pieceNo] = pieceFile.getPiece_recover_file();
+                partFiles[pieceNo - 1] = pieceFile.getPiece_recover_file();
                 continue;
             }
             if (pieceFile.getPieceFileNum() < nK) {
@@ -77,7 +95,7 @@ public class EncodeFile {
                 return false;
             }
             NCUtil.decode_file(pieceFile);
-            partFiles[pieceNo] = pieceFile.getPiece_recover_file();
+            partFiles[pieceNo - 1] = pieceFile.getPiece_recover_file();
         }
         //合并文件
         MyFileUtils.mergeFiles(originFilePath, partFiles);
@@ -104,8 +122,9 @@ public class EncodeFile {
     public JSONObject getJson_config() {
         return json_config;
     }
+
     public void setJson_config(JSONObject json_config) {
-        this.json_config=json_config;
+        this.json_config = json_config;
     }
 
     public void setJson_config() {
@@ -116,8 +135,8 @@ public class EncodeFile {
             json_config.put("haveAllNeedFile", haveAllNeedFile);
             json_config.put("totalPiecesNum", totalPiecesNum);
             json_config.put("piecesNum", piecesNum);
-            json_config.put("totalSmallPieceNum",totalSmallPieceNum);
-            json_config.put("currentSmallPieceNum",currentSmallPieceNum);
+            json_config.put("totalSmallPieceNum", totalSmallPieceNum);
+            json_config.put("currentSmallPieceNum", currentSmallPieceNum);
             json_config.put("nK", nK);
 
             //存入每片数据的信息
@@ -215,12 +234,21 @@ public class EncodeFile {
     public void setCurrentSmallPieceNum(int currentSmallPieceNum) {
         this.currentSmallPieceNum = currentSmallPieceNum;
     }
+
     public void setCurrentSmallPieceNum() {
-        int num=0;
-        for(PieceFile pieceFile:myPiecesFiles){
-            num+=pieceFile.getPieceFileNum();
+        int num = 0;
+        for (PieceFile pieceFile : myPiecesFiles) {
+            num += pieceFile.getPieceFileNum();
         }
         currentSmallPieceNum = num;
+    }
+
+    public String getDataTempPath() {
+        return dataTempPath;
+    }
+
+    public void setDataTempPath(String dataTempPath) {
+        this.dataTempPath = dataTempPath;
     }
 
     public int getTotalSmallPieceNum() {
@@ -256,8 +284,8 @@ public class EncodeFile {
         boolean haveAllNeedFile = false;
         int totalPiecesNum = 0;
         int piecesNum = 0;
-        int totalSmallPieceNum=0;
-        int currenSmallPieceNum=0;
+        int totalSmallPieceNum = 0;
+        int currenSmallPieceNum = 0;
         int nK = 0;
         //文件片的信息
         JSONArray jsonArray = new JSONArray();
@@ -269,8 +297,8 @@ public class EncodeFile {
             haveAllNeedFile = json_config.getBoolean("haveAllNeedFile");
             totalPiecesNum = json_config.getInt("totalPiecesNum");
             piecesNum = json_config.getInt("piecesNum");
-            totalSmallPieceNum=json_config.getInt("totalSmallPieceNum");
-            currenSmallPieceNum=json_config.getInt("currentSmallPieceNum");
+            totalSmallPieceNum = json_config.getInt("totalSmallPieceNum");
+            currenSmallPieceNum = json_config.getInt("currentSmallPieceNum");
             nK = json_config.getInt("nK");
 
             //片文件信息
@@ -314,16 +342,16 @@ public class EncodeFile {
                 pieceFile.setCoefMatrix(coefMatrix);
                 pieceFile.setnK(nK);
                 pieceFile.setJson_pfile_config(jsonObject);
-                String pieceFilePath=encodeFile.getFolderPath()+File.separator+pieceNo;
+                String pieceFilePath = encodeFile.getFolderPath() + File.separator + pieceNo;
                 pieceFile.setPieceFilePath(pieceFilePath);
-                pieceFile.setPieceEncodeFilePath(pieceFilePath+File.separator+"pieceEncodeFile");
-                pieceFile.setReady_to_send_path(pieceFilePath+File.separator+"ready_to_send");
+                pieceFile.setPieceEncodeFilePath(pieceFilePath + File.separator + "pieceEncodeFile");
+                pieceFile.setReady_to_send_path(pieceFilePath + File.separator + "ready_to_send");
                 encodeFile.add2myPiecesFiles(pieceFile);
             } catch (JSONException e) {
                 e.printStackTrace();
             }
         }
-       // encodeFile.setJson_config(json_config);
+        // encodeFile.setJson_config(json_config);
         return encodeFile;
     }
 }

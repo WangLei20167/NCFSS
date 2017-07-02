@@ -125,64 +125,6 @@ public class TCPServer {
     }
 
 
-    /**
-     * 发送文件
-     * <p>
-     * out 指定发送流
-     *
-     * @param fileList 文件列表
-     */
-    public void SendFile(String ip, DataOutputStream out, ArrayList<File> fileList) {
-        if (fileList == null || fileList.size() == 0) {
-            return;
-        }
-        int total_file_len = 0;
-        for (File file : fileList) {
-            total_file_len += file.length();
-        }
-
-
-        int already_send_len = 0;    //用以记录已经发送的字节数
-
-
-        for (File file : fileList) {
-            // File file = Utils.getFileForUri(uri);
-            try {
-                InputStream input = null;
-                //发送文件名
-                byte[] bt_fileName = file.getName().getBytes();
-                int fileName_len = bt_fileName.length;
-                out.write(IntAndBytes.send_instruction_len(Constant.PIECE_FILE_NAME, fileName_len));
-                out.write(bt_fileName);
-                //发送文件的长度
-                int fileLen = (int) file.length();
-                out.write(IntAndBytes.send_instruction_len(Constant.PIECE_FILE, fileLen));
-                //读取文件的内容发送
-                input = new FileInputStream(file);
-                byte[] data = new byte[Constant.BUFFER_SIZE];
-                int len = -1;
-                //int already_send_data=0;
-                while ((len = input.read(data)) != -1) {
-                    out.write(data, 0, len);
-                    already_send_len += len;
-                    SendMessage(MsgValue.S_SET_SENT_PROGRESS, (int) ((already_send_len / (float) total_file_len) * 100), 0, ip);// 改变进度球
-                }
-                //关闭输入输出流
-                //out.close();//若是关闭，无法再次接收
-                input.close();
-                //删除file
-                file.delete();
-            } catch (IOException e) {
-                e.printStackTrace();
-                //文件发送异常
-                return;
-            }
-        }
-
-
-    }
-
-
     //Server端的主线程
     class ServerThread extends Thread {
         //停止监听端口
@@ -275,10 +217,10 @@ public class TCPServer {
                 out.write(send_phoneName);
 
                 //发送配置文件json_file
-//                byte[] bt_json_file = MyFileUtils.readFile(localData.getFolderPath(), "json.txt");
-//                int file_len = bt_json_file.length;
-//                out.write(IntAndBytes.send_instruction_len(Constant.JSON_FILE, file_len));
-//                out.write(bt_json_file);
+                byte[] bt_json_file = MyFileUtils.readFile(localData.getFolderPath(), "json.txt");
+                int file_len = bt_json_file.length;
+                out.write(IntAndBytes.send_instruction_len(Constant.JSON_FILE, file_len));
+                out.write(bt_json_file);
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -322,11 +264,33 @@ public class TCPServer {
                                             break;
                                         //接收配置文件 配置文件名字为json.txt
                                         case Constant.JSON_FILE:
-                                            in.read(getBytes, 0, readLen);
-                                            File json_file = MyFileUtils.writeToFile(TempPath, "json.txt", getBytes, 0, readLen, false);
+                                            int limitLen = readLen;
+                                            if (readLen > Constant.BUFFER_SIZE) {
+                                                limitLen = Constant.BUFFER_SIZE;
+                                            }
+                                            File json_file = MyFileUtils.creatFile(TempPath, "json.txt");
+                                            FileOutputStream fos1 = new FileOutputStream(json_file);
+                                            int bytes = 0;
+                                            while (true) {
+                                                int len=in.read(getBytes, 0, limitLen);
+                                                fos1.write(getBytes, 0, len);
+                                                bytes += len;   //记录已经写入的文件个数
+                                                //设置接收进度
+                                                limitLen = readLen - bytes;
+                                                if (limitLen > Constant.BUFFER_SIZE) {
+                                                    limitLen = Constant.BUFFER_SIZE;
+                                                } else if (limitLen <= 0) {
+                                                    break;
+                                                }
+                                            }
+                                            fos1.close();
                                             //解析文件，查看自己是否有对方有用的数据，以便向对方发送
                                             ArrayList<File> files = getSendFiles(json_file);
                                             SendFile(socket_ip, out, files);
+                                            //重新编码文件
+                                            if(!(files==null||files.size()==0)) {
+                                                localData.reEncodeFile();
+                                            }
                                             break;
                                         //pieceNo和接收编码文件的名字属于哪个分片
                                         case Constant.PIECE_FILE_NAME:
@@ -363,9 +327,9 @@ public class TCPServer {
                                             int readBytes = 0;   //已经读取的字节数
                                             while (true) {
                                                 //从缓存区读取数据放入文件
-                                                in.read(getBytes, 0, limitReadNum);
-                                                fos.write(getBytes, 0, limitReadNum);
-                                                readBytes += limitReadNum;   //记录已经写入的文件个数
+                                                int len = in.read(getBytes, 0, limitReadNum);  //限制最大读取长度
+                                                fos.write(getBytes, 0, len);
+                                                readBytes += len;   //记录已经写入的文件个数
                                                 //设置接收进度
                                                 SendMessage(MsgValue.S_SET_REV_PROGRESS, (int) ((readBytes / (float) readLen) * 100), 0, phoneName);
                                                 limitReadNum = readLen - readBytes;
@@ -380,28 +344,41 @@ public class TCPServer {
                                             pieceFile.addToPiecesEncodeFiles(file);
                                             pieceFile.setPieceFileNum(pieceFile.getPieceFileNum() + 1);
                                             pieceFile.setCoefMatrix();
-                                            pieceFile.setJson_pfile_config();
+
                                             if (pieceFile.getPieceFileNum() == pieceFile.getnK()) {
                                                 pieceFile.setHaveNeedFile(true);
                                                 NCUtil.decode_file(pieceFile);
-                                                if (localData.try2decode()) {
-                                                    // localData.getFileName()解码成功
-                                                }
+
                                             }
+                                            pieceFile.setJson_pfile_config();
                                             if (flag_new) {
                                                 localData.add2myPiecesFiles(pieceFile);
                                                 localData.setPiecesNum(localData.getPiecesNum() + 1);
                                             } else {
                                                 ArrayList<PieceFile> pieceFiles = localData.getMyPiecesFiles();
+                                                PieceFile pieceFile0 = null;
                                                 for (PieceFile pieceFile1 : pieceFiles) {
                                                     if (pieceFile1.getPieceNo() == pieceNo) {
-                                                        pieceFiles.remove(pieceFile1);
-                                                        pieceFiles.add(pieceFile);
-                                                        localData.setMyPiecesFiles(pieceFiles);
+                                                        pieceFile0 = pieceFile1;
+                                                        break;
                                                     }
+                                                }
+                                                //删除原有的信息
+                                                if (pieceFile0 != null) {
+                                                    pieceFiles.remove(pieceFile0);
+                                                    pieceFiles.add(pieceFile);
+                                                    localData.setMyPiecesFiles(pieceFiles);
                                                 }
                                             }
                                             localData.setCurrentSmallPieceNum(localData.getCurrentSmallPieceNum() + 1);
+
+                                            //尝试解码
+                                            if (localData.getCurrentSmallPieceNum() == localData.getTotalSmallPieceNum()) {
+                                                localData.setHaveAllNeedFile(true);
+                                                if (localData.try2decode()) {
+                                                    // localData.getFileName()解码成功
+                                                }
+                                            }
                                             localData.setJson_config();
 
                                             //文件接收完毕
@@ -414,7 +391,7 @@ public class TCPServer {
                                             if (s.equals(Constant.END_STRING)) {
                                                 socket_flag = false;
                                                 //关掉圆形进度球
-                                                SendMessage(MsgValue.S_SOCET_END_FLAG, 0, 0, null);
+                                                SendMessage(MsgValue.S_SOCET_END_FLAG, 0, 0, socket_ip);
                                                 //关闭流
                                                 in.close();
                                                 out.close();
@@ -424,6 +401,7 @@ public class TCPServer {
                                         default:
                                             break;
                                     }
+
 
                                 }
                             } catch (IOException e) {
@@ -527,21 +505,22 @@ public class TCPServer {
                             int nCol = pieceFile.getnK();
                             int row = lD_pieceFile.getPieceFileNum();  //本地
                             if (NCUtil.havaUsefulData(Rev, nRow, nCol, coefMatrix, row)) {
-                                files.add(lD_pieceFile.getReady_to_send_file());
-                                //重新编码文件
-                                new Thread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        NCUtil.re_encode_file(lD_pieceFile);
-                                    }
-                                }).start();
+                                File file = lD_pieceFile.getReady_to_send_file();
+                                if (file.exists()) {
+                                    files.add(file);
+                                    lD_pieceFile.setSend_or_no(true);
+                                }
                             }
                             haveThisPiece = true;
                             break;
                         }
                     }
                     if (!haveThisPiece) {
-                        files.add(lD_pieceFile.getReady_to_send_file());
+                        File file = lD_pieceFile.getReady_to_send_file();
+                        if (file.exists()) {
+                            lD_pieceFile.setSend_or_no(true);
+                            files.add(file);
+                        }
                     }
 
                 }
@@ -549,6 +528,78 @@ public class TCPServer {
             }
 
         }
+
+    }
+
+
+    /**
+     * 发送文件
+     * <p>
+     * out 指定发送流
+     *
+     * @param fileList 文件列表
+     */
+    public void SendFile(String ip, DataOutputStream out, ArrayList<File> fileList) {
+        if (fileList == null || fileList.size() == 0) {
+            return;
+        }
+        int total_file_len = 0;
+        for (File file : fileList) {
+            total_file_len += file.length();
+        }
+
+
+        int already_send_len = 0;    //用以记录已经发送的字节数
+
+
+        for (File file : fileList) {
+            // File file = Utils.getFileForUri(uri);
+            try {
+                InputStream input = null;
+                //发送文件名
+                byte[] bt_fileName = file.getName().getBytes();
+                int fileName_len = bt_fileName.length;
+                out.write(IntAndBytes.send_instruction_len(Constant.PIECE_FILE_NAME, fileName_len));
+                out.write(bt_fileName);
+                //发送文件的长度
+                int fileLen = (int) file.length();
+                out.write(IntAndBytes.send_instruction_len(Constant.PIECE_FILE, fileLen));
+                //读取文件的内容发送
+                input = new FileInputStream(file);
+                byte[] data = new byte[Constant.BUFFER_SIZE];
+
+                //int already_send_data=0;
+                int limitRead = 0;
+                if (fileLen > Constant.BUFFER_SIZE) {
+                    limitRead = Constant.BUFFER_SIZE;
+                } else {
+                    limitRead = fileLen;
+                }
+                int readLen = 0;
+                while ((input.read(data, 0, limitRead)) != -1) {
+                    out.write(data, 0, limitRead);
+                    already_send_len += limitRead;   //总体进度
+                    readLen += limitRead;   //单个文件的进度
+                    SendMessage(MsgValue.S_SET_SENT_PROGRESS, (int) ((already_send_len / (float) total_file_len) * 100), 0, ip);// 改变进度球
+                    limitRead = fileLen - readLen;
+                    if (limitRead > Constant.BUFFER_SIZE) {
+                        limitRead = Constant.BUFFER_SIZE;
+                    } else if (limitRead <= 0) {
+                        //发送完成
+                        break;
+                    }
+                }
+
+                //关闭输入输出流
+                //out.close();//若是关闭，无法再次接收
+                input.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+                //文件发送异常
+                return;
+            }
+        }
+
 
     }
 

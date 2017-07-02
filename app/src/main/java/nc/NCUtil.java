@@ -3,6 +3,7 @@ package nc;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -58,9 +59,9 @@ public class NCUtil {
             try {
                 //从文件读取nK值，在第一个字节
                 FileInputStream stream = new FileInputStream(files.get(i));
-                stream.read(b,0,1);
+                stream.read(b, 0, 1);
                 //读入一行系数矩阵
-                stream.read(CoefficientMatrix[i],0,4);
+                stream.read(CoefficientMatrix[i], 0, 4);
                 stream.close();
             } catch (Exception e) {
                 e.printStackTrace();
@@ -133,6 +134,8 @@ public class NCUtil {
         int K = encodeFile.getnK();
         String storagePath = encodeFile.getFolderPath();
 
+        String dataTempPath = encodeFile.getDataTempPath();
+
         int fileLen = (int) (file.length());
         int file_piece_len = 10 * 1024 * 1024;  //若是大于10M的文件，对文件进行分片，每片10M
         int piece_num = fileLen / file_piece_len + (fileLen % file_piece_len != 0 ? 1 : 0);
@@ -140,9 +143,9 @@ public class NCUtil {
         encodeFile.setPiecesNum(piece_num);   //设置文件片数
         encodeFile.setTotalSmallPieceNum(piece_num * K);
         encodeFile.setCurrentSmallPieceNum(piece_num * K);
-        byte[][] _10m_file_data = new byte[piece_num - 1][fileLen];  //每片10M的数据
+        //创建piece_num个文件用来暂存数据
+        ArrayList<File> temp_pFiles = new ArrayList<File>();
         int rest_len = fileLen - file_piece_len * (piece_num - 1);  //最后一片的长度
-        byte[] rest_file_data = new byte[rest_len];          //最后一片数据
         InputStream in;
         try {
             in = new FileInputStream(file);
@@ -152,52 +155,63 @@ public class NCUtil {
             return;
         }
 
-        //读取文件到数组
+        //读取文件到片文件
         for (int i = 0; i < piece_num; ++i) {
             if (i == (piece_num - 1)) {
+                //创建一个文件用于写入这一片数据
+                File piece_file = MyFileUtils.splitFile(in, dataTempPath, (i + 1) + ".piece", rest_len);
+                temp_pFiles.add(piece_file);
                 try {
-                    in.read(rest_file_data, 0, rest_len);    //读取文件中的内容到b[]数组
+                    //关闭文件流
                     in.close();
                 } catch (IOException e) {
                     e.printStackTrace();
+                    return;
                 }
             } else {
-                try {
-                    //参数0 file_piece_len 含义是从文件读取file_piece_len个字节，
-                    // 放在byte[]数组0到file_piece_len-1处
-                    //注意：连续读取时，这两个参数必需指定，不然下次再读失败
-                    in.read(_10m_file_data[i], 0, file_piece_len);    //读取文件中的内容到b[]数组
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+                //创建一个文件用于写入这一片数据
+                File piece_file = MyFileUtils.splitFile(in, dataTempPath, (i + 1) + ".piece", file_piece_len);
+                temp_pFiles.add(piece_file);
             }
         }
 
         //编码数据   针对每一片在进行K次分割
         for (int i = 0; i < piece_num; ++i) {
-
             if (i == (piece_num - 1)) {
                 //创建存储路径
                 PieceFile pieceFile = new PieceFile(storagePath, i + 1, K);
 
                 int perLen = rest_len / K + (rest_len % K != 0 ? 1 : 0);
-                int col = 1 + K + perLen;
-                byte[][] data = new byte[K][col];
-                int iFlag = 0;   //作为数组下标标识
+                File origin_file = temp_pFiles.get(i);
+                InputStream inputStream;
+                try {
+                    inputStream = new FileInputStream(origin_file);
+                } catch (FileNotFoundException e) {
+                    //读文件出错
+                    e.printStackTrace();
+                    return;
+                }
+                String path = pieceFile.getPieceEncodeFilePath();
                 //对数据封装 K+单位矩阵+数据
                 for (int m = 0; m < K; ++m) {
-                    data[m][0] = (byte) K;
-                    data[m][m + 1] = 1;       //在此其实是存入一个单位矩阵
-                    for (int n = K + 1; n < col; ++n) {
-                        data[m][n] = rest_file_data[iFlag];
-                        ++iFlag;
-                        //数据已读完
-                        if (iFlag == rest_len) {
-                            break;
-                        }
+                    byte[] b = new byte[1 + K];
+                    b[0] = (byte) K;
+                    b[m + 1] = 1;
+                    String fileName = (i + 1) + "_" + (m + 1) + ".nc";
+                    File piece_file = MyFileUtils.creatFile(path, fileName);
+                    try {
+                        FileOutputStream fos = new FileOutputStream(piece_file);
+                        fos.write(b);    //写入文件
+                        fos.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
-                    //此处写入文件   作为一个编码数据
-                    MyFileUtils.writeToFile(pieceFile.getPieceEncodeFilePath(), (i + 1) + "_" + (m + 1) + ".nc", data[m]);
+                    MyFileUtils.splitFile(inputStream, path, fileName,perLen);
+                }
+                try {
+                    inputStream.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
                 pieceFile.setPieceFileNum(K);
                 pieceFile.setHaveNeedFile(true);
@@ -210,28 +224,42 @@ public class NCUtil {
 
             } else {
                 //创建存储路径
+                //创建存储路径
                 PieceFile pieceFile = new PieceFile(storagePath, i + 1, K);
 
                 int perLen = file_piece_len / K + (file_piece_len % K != 0 ? 1 : 0);
-                int col = 1 + K + perLen;
-                byte[][] data = new byte[K][col];
-                int iFlag = 0;
+                File origin_file = temp_pFiles.get(i);
+                InputStream inputStream;
+                try {
+                    inputStream = new FileInputStream(origin_file);
+                } catch (FileNotFoundException e) {
+                    //读文件出错
+                    e.printStackTrace();
+                    return;
+                }
+                String path = pieceFile.getPieceEncodeFilePath();
                 //对数据封装 K+单位矩阵+数据
                 for (int m = 0; m < K; ++m) {
-                    data[m][0] = (byte) K;
-                    data[m][m + 1] = 1;       //在此其实是存入一个单位矩阵
-                    for (int n = K + 1; n < col; ++n) {
-                        data[m][n] = _10m_file_data[i][iFlag];
-                        ++iFlag;
-                        //数据已读完
-                        if (iFlag == file_piece_len) {
-                            break;
-                        }
+                    byte[] b = new byte[1 + K];
+                    b[0] = (byte) K;
+                    b[m + 1] = 1;
+                    String fileName = (i + 1) + "_" + (m + 1) + ".nc";
+                    File piece_file = MyFileUtils.creatFile(path, fileName);
+                    try {
+                        FileOutputStream fos = new FileOutputStream(piece_file);
+                        fos.write(b);    //写入文件
+                        fos.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
-                    //此处写入文件   作为一个编码数据
-
-                    MyFileUtils.writeToFile(pieceFile.getPieceEncodeFilePath(), (i + 1) + "_" + (m + 1) + ".nc", data[m]);
+                    MyFileUtils.splitFile(inputStream, path, fileName,perLen);
                 }
+                try {
+                    inputStream.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
                 pieceFile.setPieceFileNum(K);
                 pieceFile.setHaveNeedFile(true);
                 pieceFile.setPiecesEncodeFiles();
@@ -242,6 +270,8 @@ public class NCUtil {
                 encodeFile.add2myPiecesFiles(pieceFile);
             }
         }
+        //删除缓存的数据
+        MyFileUtils.deleteAllFile(dataTempPath,false);
         encodeFile.setHaveAllNeedFile(true);
         //设置json变量 并将配置写入文件
         encodeFile.setJson_config();
@@ -286,12 +316,14 @@ public class NCUtil {
         NCUtil.locked();
         //存再编码结果
         byte[][] reEncodeData = new byte[1][fileLen];
-        reEncodeData = Reencode(fileData, fileNum, fileLen,1);
+        reEncodeData = Reencode(fileData, fileNum, fileLen, 1);
         NCUtil.unlocked();
 
 
         //写入sendFilePath文件夹中
         String ready_to_send_path = pieceFile.getReady_to_send_path();
+        //删除之前的再编码文件
+        MyFileUtils.deleteAllFile(ready_to_send_path, false);
         int pieceNo = pieceFile.getPieceNo();
         String fileName = pieceNo + "." + LocalInfor.getCurrentTime("MMddHHmmss") + ".nc"; //pieceNo.time.re  //格式
         File file = MyFileUtils.writeToFile(ready_to_send_path, fileName, reEncodeData[0]);
@@ -381,7 +413,7 @@ public class NCUtil {
     public static native byte[][] Encode(byte[] buffer_, int N, int K, int nLen);
 
     //再编码函数,nLength为编码文件的总长（1+K+len)
-    public static native byte[][] Reencode(byte[][] buffer, int nPart, int nLength,int outputNum);
+    public static native byte[][] Reencode(byte[][] buffer, int nPart, int nLength, int outputNum);
 
     //解码函数
     public static native byte[][] Decode(byte[][] buffer, int nPart, int nLength);

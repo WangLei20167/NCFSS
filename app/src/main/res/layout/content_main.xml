@@ -124,8 +124,6 @@
                 android:id="@+id/linearLayout_server"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-
-
                 android:layout_alignParentRight="true"
                 android:layout_centerVertical="true"
                 android:orientation="vertical">
@@ -136,15 +134,14 @@
                     android:layout_height="60dp"
                     android:visibility="gone"
                     app:circle_finished_color="#00CD00" />
-
                 <TextView
                     android:id="@+id/tv_phone_name_server"
                     android:layout_width="70dp"
                     android:layout_height="wrap_content"
-                    android:layout_below="@+id/circle_progress1"
+                    android:layout_below="@+id/imageView_phone1"
                     android:gravity="center"
-                    android:text=""
-                    android:visibility="gone" />
+                    android:visibility="gone"
+                     />
 
             </LinearLayout>
         </RelativeLayout>

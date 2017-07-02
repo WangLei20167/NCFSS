@@ -3,6 +3,7 @@ package utils;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -70,16 +71,15 @@ public class MyFileUtils {
     }
 
     /**
-     *
      * @param path
      * @param fileName
      * @param inputData
      * @param off
      * @param len
-     * @param append  表明是续写还是覆盖写
+     * @param append    表明是续写还是覆盖写
      * @return
      */
-    public static File writeToFile(String path, String fileName, byte[] inputData,int off,int len,boolean append) {
+    public static File writeToFile(String path, String fileName, byte[] inputData, int off, int len, boolean append) {
 
         File myFile = new File(path + File.separator + fileName);
         FileOutputStream fos = null;
@@ -97,9 +97,9 @@ public class MyFileUtils {
             //传递一个true参数，代表不覆盖已有的文件。并在已有文件的末尾处进行数据续写,false表示覆盖写
             //FileWriter fw = new FileWriter(myFile, false);
             //BufferedWriter bw = new BufferedWriter(fw);
-            fos = new FileOutputStream(myFile,append);
+            fos = new FileOutputStream(myFile, append);
             bos = new BufferedOutputStream(fos);
-            bos.write(inputData,off,len);
+            bos.write(inputData, off, len);
             //bw.write("测试文本");
         } catch (IOException e) {
             e.printStackTrace();
@@ -173,6 +173,7 @@ public class MyFileUtils {
         return buffer;
 
     }
+
     public static byte[] readFile(File file) {
         if (!file.exists()) {
             try {
@@ -333,10 +334,11 @@ public class MyFileUtils {
 
     /**
      * 获取一级目录下所有文件和文件夹
+     *
      * @param obj
      * @return
      */
-    public static ArrayList<File> getList(Object obj){
+    public static ArrayList<File> getList(Object obj) {
         File directory = null;
         if (obj instanceof File) {
             directory = (File) obj;
@@ -380,11 +382,12 @@ public class MyFileUtils {
     /**
      * 删除指定目录下所有文件  注意：删除文件夹时，是先删除其中所有文件，再删除文件夹
      * 不删除指定的路径
+     *
      * @param obj
      * @param deletePath 是否删除路径（文件夹）
      * @return
      */
-    public static void deleteAllFile(Object obj,boolean deletePath) {
+    public static void deleteAllFile(Object obj, boolean deletePath) {
         File directory = null;
         if (obj instanceof File) {
             directory = (File) obj;
@@ -399,35 +402,34 @@ public class MyFileUtils {
             for (int i = 0; i < fileArr.length; i++) {
                 File fileOne = fileArr[i];
                 if (fileOne.isDirectory()) {
-                    deleteAllFile(fileOne,false);
+                    deleteAllFile(fileOne, false);
                 }
                 fileOne.delete();
             }
             //这句加上的话  指定路径也会被删除
-            if(deletePath) {
+            if (deletePath) {
                 directory.delete();
             }
         }
     }
 
 
-
-
     /**
      * 合并文件
+     *
      * @param outFile 输出路径
      * @param files   需要合并的文件路径
-     *
      */
     public static final int BUFSIZE = 1024 * 8;
+
     public static void mergeFiles(String outFile, File[] files) {
         FileChannel outChannel = null;
         try {
             outChannel = new FileOutputStream(outFile).getChannel();
-            for(File f : files){
+            for (File f : files) {
                 FileChannel fc = new FileInputStream(f).getChannel();
                 ByteBuffer bb = ByteBuffer.allocate(BUFSIZE);
-                while(fc.read(bb) != -1){
+                while (fc.read(bb) != -1) {
                     bb.flip();
                     outChannel.write(bb);
                     bb.clear();
@@ -437,7 +439,12 @@ public class MyFileUtils {
         } catch (IOException ioe) {
             ioe.printStackTrace();
         } finally {
-            try {if (outChannel != null) {outChannel.close();}} catch (IOException ignore) {}
+            try {
+                if (outChannel != null) {
+                    outChannel.close();
+                }
+            } catch (IOException ignore) {
+            }
         }
     }
 
@@ -480,6 +487,50 @@ public class MyFileUtils {
                 e.printStackTrace();
             }
         }
+
+    }
+
+
+    /**
+     * 从一个文件读取一定字节到另一个文件，续写
+     *
+     * @param in      输入文件
+     * @param path
+     * @param fileName
+     * @param bytes    字节数
+     */
+    public static File splitFile(InputStream in, String path, String fileName, int bytes) {
+        File out_file = creatFile(path, fileName);
+        FileOutputStream fos = null;
+        try {
+            fos = new FileOutputStream(out_file,true);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            return null;
+        }
+        int limitRead = bytes;
+        if (limitRead > 1024) {
+            limitRead = 1024;
+        }
+        byte[] temp = new byte[1024];
+        int readBytes = 0;
+        while (true) {
+            try {
+                int len = in.read(temp, 0, limitRead);
+                fos.write(temp, 0, len);    //写入文件
+                readBytes += len;
+                limitRead = bytes - readBytes;
+                if (limitRead > 1024) {
+                    limitRead = 1024;
+                } else if (limitRead <= 0) {
+                    fos.close();
+                    break;
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return out_file;
 
     }
 }
